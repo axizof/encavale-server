@@ -55,7 +55,7 @@ function connect(hello: Msg) {
     const old = msgs.find(pred);
     if (old) return res(old);
     waiters.push({ pred, res });
-    setTimeout(() => rej(new Error('message attendu non reçu')), ms);
+    setTimeout(() => rej(new Error(`message attendu non reçu : ${pred.toString().slice(0, 90)}`)), ms);
   });
   ws.on('open', () => ws.send(JSON.stringify({ t: 'hello', v: PROTOCOL, cid: cid(), ...hello })));
   return { ws, msgs, wait, closed, send: (o: Msg) => ws.send(JSON.stringify(o)) };
@@ -138,7 +138,9 @@ test('approbation par l\'hôte, chat, invité sans pouvoir, bannissement', async
 test('admin en jeu par compte Discord : entre sans attendre, règle, voit les demandes, lance, arrête', async () => {
   const P = await panel();
   // ticket falsifié : refusé, on joue en invité (et on attend l'accord)
-  const bad = ticket(ADMIN_DID, 'Patron').replace(/.$/, (c) => (c === 'A' ? 'B' : 'A'));
+  // (on change un caractère au milieu de la signature : le dernier ne porte en partie que du remplissage)
+  const good = ticket(ADMIN_DID, 'Patron'), k = good.length - 20;
+  const bad = good.slice(0, k) + (good[k] === 'A' ? 'B' : 'A') + good.slice(k + 1);
   const fake = connect({ name: 'Faussaire', pass: 'secret', ticket: bad });
   await fake.wait((m) => m.t === 'pending');
   fake.ws.close();
