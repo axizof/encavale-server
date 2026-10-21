@@ -39,7 +39,7 @@ Télécharge l'archive de ton système dans les [**Releases**](../../releases) :
 Décompresse-la dans un dossier à toi, puis lance l'exécutable :
 
 - **Windows** : double-clic sur `encavale-server-….exe`. Si SmartScreen s'affiche, clique sur « Informations complémentaires », puis « Exécuter quand même ». Le pare-feu Windows te demande l'accès réseau : accepte.
-- **Mac** : ouvre un Terminal dans le dossier et tape `./encavale-server-…`. Si macOS refuse (« développeur non identifié »), tape d'abord `xattr -d com.apple.quarantine encavale-server-*`.
+- **Mac** : ouvre un Terminal dans le dossier et tape `./encavale-server-…`. Si macOS dit que le fichier est « endommagé » ou vient d'un « développeur non identifié », c'est normal (exécutable non signé par Apple) : tape d'abord `xattr -dr com.apple.quarantine .` dans le dossier.
 - **Linux** : `./encavale-server-…`.
 
 Au premier lancement, le serveur crée **`config.json`** à côté de l'exécutable, puis affiche les adresses où le rejoindre et le **mot de passe du panneau admin** :

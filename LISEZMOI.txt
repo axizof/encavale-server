@@ -16,8 +16,9 @@ EN CAVALE — serveur multijoueur
    démarrage. Réglages, lancement des manches, arrivées, expulsions, bannissements, stats.
    Aucun joueur n'a de pouvoir admin dans le jeu.
 
-Mac : si macOS bloque le fichier (« développeur non identifié »), clic droit > Ouvrir,
-ou dans un terminal : xattr -d com.apple.quarantine encavale-server-*
+Mac : si macOS dit que le fichier est « endommagé » ou vient d'un « développeur non identifié »,
+c'est normal (exécutable non signé par Apple). Dans un terminal, dans le dossier :
+  xattr -dr com.apple.quarantine .
 Windows : si SmartScreen s'affiche, « Informations complémentaires » > « Exécuter quand même ».
 
 Tout le reste : https://github.com/axizof/encavale-server
