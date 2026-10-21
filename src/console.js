@@ -19,6 +19,8 @@ Commandes :
   accepter <n°> / refuser <n°>   demandes d'entrée (si l'approbation est activée)
   approbation on|off       demander l'accord de l'hôte pour chaque arrivée
   motdepasse <mdp|off>     changer le mot de passe
+  stats                    processeur, mémoire, réseau, voitures (moyennes 1 min et 1 h)
+  panneau [mdp]            afficher / changer le mot de passe du panneau web (/admin)
   infos                    adresse, code admin, réglages
   quitter                  arrêter le serveur
 `;
@@ -88,6 +90,22 @@ function run(srv, line, extra) {
       log.info(srv.cfg.password ? 'Mot de passe changé.' : 'Serveur sans mot de passe.');
       break;
     case 'infos': case 'info': extra.banner(); break;
+    case 'stats': {
+      const m = srv.metrics, n = m.last(), a1 = m.avg(60), a60 = m.avg(3600);
+      if (!n) { log.info('Mesures disponibles dans une seconde.'); break; }
+      const sim = srv.sim ? srv.sim.stats() : null;
+      log.out(`  Processeur  : ${n.cpu} % d'un cœur (moy. 1 min ${a1.cpu} %, 1 h ${a60.cpu} %)`);
+      log.out(`  Mémoire     : ${n.rss} Mo (données JS ${n.heap} Mo)`);
+      log.out(`  Calcul      : simulation ${n.sim} ms · boucle ${n.tick} ms · latence ${n.lag} ms (max ${n.lagMax} ms)`);
+      log.out(`  Réseau      : ${n.out} Ko/s envoyés, ${n.in} Ko/s reçus (moy. 1 min ${a1.out} / ${a1.in})`);
+      log.out(`  Voitures    : ${n.traffic} civiles, ${n.police} police IA · ${n.players} joueur(s)${sim ? ` · moteur ${sim.vehicles} voitures` : ' · moteur absent'}`);
+      log.out(`  En ligne    : ${Math.floor(m.uptime() / 60)} min`);
+      break;
+    }
+    case 'panneau': case 'panel':
+      if (a1) { srv.cfg.panelPassword = restTxt; extra.save(); log.info('Mot de passe du panneau changé (les sessions ouvertes restent valides 12 h).'); }
+      else log.plain(`  Panneau : http://localhost:${srv.cfg.port}/admin — mot de passe : ${srv.cfg.panelPassword}`);
+      break;
     case 'quitter': case 'exit': case 'quit': extra.shutdown(); break;
     default: log.warn('Commande inconnue (tape « aide »)');
   }

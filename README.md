@@ -7,13 +7,16 @@ Le serveur multijoueur du jeu **En Cavale**, à héberger soi-même, comme un se
 - Un **chat** avec anti-flood, et la possibilité de masquer les messages de quelqu'un.
 - Pour l'hôte : **mot de passe**, **accord de l'hôte** pour chaque arrivée, **expulsion**, **bannissement**.
 - Le **serveur fait foi** : la vie, les morts, les arrestations, les scores et les positions impossibles sont vérifiés côté serveur.
+- **Circulation civile partagée**, simulée par le serveur : tout le monde voit les mêmes voitures, et seulement autour des joueurs.
+- **Police IA** au choix de l'hôte : calculée par le joueur poursuivi (réactive) ou par le serveur (anti-triche).
+- **Panneau admin web** protégé par mot de passe : processeur, mémoire, réseau, voitures, avec historique, joueurs et journal.
 
 ## Sommaire
 1. [Lancer un serveur](#1-lancer-un-serveur)
 2. [Ouvrir le serveur aux joueurs](#2-ouvrir-le-serveur-aux-joueurs)
 3. [Rejoindre](#3-rejoindre)
 4. [Configuration (config.json)](#4-configuration-configjson)
-5. [Administrer](#5-administrer)
+5. [Administrer (jeu, terminal, panneau web)](#5-administrer)
 6. [Les parties](#6-les-parties)
 7. [Sécurité et anti-triche](#7-sécurité-et-anti-triche)
 8. [Héberger sur un VPS Linux](#8-héberger-sur-un-vps-linux)
@@ -76,6 +79,7 @@ Le serveur **sert le jeu lui-même**. Les joueurs n'ont rien à installer : la p
 | `adminCode` | aléatoire | Code pour devenir admin en jeu (`/admin CODE`), ou à saisir dans « Je suis l'hôte » en rejoignant. |
 | `joinApproval` | `false` | `true` : chaque arrivée doit être acceptée par un admin. Une notification apparaît en jeu et dans le terminal. |
 | `motd` | message de bienvenue | Message affiché à l'arrivée. |
+| `panelPassword` | aléatoire | Mot de passe du **panneau admin web** (`http://IP:port/admin`). Il s'affiche au démarrage. |
 | `publicHost` | `[]` | Seulement derrière un reverse proxy : adresses publiques du serveur, pour accepter les tickets Discord. |
 | `settings` | — | Derniers réglages de partie (mis à jour par le serveur). |
 
@@ -92,6 +96,17 @@ Relance le serveur après avoir modifié le fichier. Les bannissements sont dans
 
 Commandes de chat : `/aide`, `/joueurs`, `/admin CODE` ; pour les admins : `/kick nom`, `/ban nom`, `/muet nom`, `/lancer`, `/stop`.
 
+**Panneau admin web** : `http://IP:port/admin`, protégé par le mot de passe `panelPassword` (affiché au démarrage, modifiable avec `panneau NOUVEAU-MDP`). Les admins en jeu ont aussi un bouton « Panneau admin » dans le salon et dans le menu Échap. On y trouve :
+- le processeur, la mémoire, le temps de calcul, la latence et le réseau, en direct, avec un historique de 5 min, 1 h ou 24 h ;
+- le nombre de joueurs, de voitures civiles et de voitures de police IA ;
+- la liste des joueurs (rôle, score, ping, IP), avec les boutons couper le chat, expulser et bannir ;
+- une annonce dans le chat, lancer ou arrêter la manche ;
+- le journal du serveur.
+
+La session dure 12 h (cookie HttpOnly). Après 5 mauvais mots de passe, l'IP est bloquée 5 minutes.
+
+⚠️ Le serveur fonctionne en `http` simple, comme le jeu : le mot de passe passe **en clair** sur le réseau. Utilise le panneau depuis le PC du serveur (`http://localhost:port/admin`) ou sur un réseau de confiance. Sur un VPS, le plus sûr est un tunnel SSH : `ssh -L 7777:localhost:7777 ton-vps`, puis ouvre `http://localhost:7777/admin`.
+
 **Dans le terminal du serveur** (tape `aide`) :
 
 ```
@@ -104,6 +119,8 @@ set bots normal          bots (off|normal|renforce), herses (off|rare|normal|bea
 kick <joueur> [raison]   ban <joueur> [raison]   bans   unban <n°|nom>
 muet <joueur>            admin <joueur>          dire <message>
 accepter <n°> / refuser <n°>     approbation on|off     motdepasse <mdp|off>
+stats                    processeur, mémoire, réseau, voitures (moyennes 1 min / 1 h)
+panneau [mdp]            afficher / changer le mot de passe du panneau web
 infos                    quitter
 ```
 
@@ -121,6 +138,10 @@ infos                    quitter
 
 Chaque joueur indique sa préférence au salon (peu importe, fuyard, flic ou spectateur). Le serveur en tient compte pour répartir les rôles.
 
+- **Circulation** (Aucune, Légère, Normale ou Dense) : elle est simulée par le serveur avec la même physique et la même IA que le jeu solo. Tout le monde voit les mêmes voitures civiles, au même endroit, et un accident est le même pour tous. Les voitures n'existent qu'autour des joueurs : elles apparaissent hors de leur vue et disparaissent quand plus personne n'est à proximité. Là où il n'y a personne, rien n'est calculé.
+- **Police IA, deux modes** :
+  - *Réactive* (par défaut) : le PC du fuyard poursuivi fait rouler sa police et l'envoie aux autres. C'est parfaitement fluide pour lui. Si sa connexion est mauvaise, les autres le voient saccader, lui et sa police, mais ensemble et de façon cohérente.
+  - *Serveur* : le serveur fait rouler la police, gère les étoiles, les barrages et les herses. Impossible à tricher, mais avec une mauvaise connexion le fuyard voit ses poursuivants avec un léger décalage.
 - **Fuyards** : la vraie partie solo (braquages, livraisons, défis), en survivant. S'ils sont détruits ou arrêtés, ils passent **spectateurs** jusqu'à la manche suivante. Avec la police IA, chaque fuyard a ses propres poursuivants : la police se divise. Plus il y a de fuyards, plus elle est nombreuse et agressive.
 - **Flics joueurs** : il faut détruire les fuyards (les chocs comptent) ou les **arrêter** (fuyard immobilisé, flic collé à lui pendant 3 s). Un flic détruit repart **40 s** plus tard, assez loin des fuyards. La radio donne la position de tous les fuyards toutes les 8 s.
 - **Voitures de flic** : moins il y a de flics par rapport aux fuyards, plus elles sont fortes. Peu de flics : Intercepteur, SUV ou Berline. Autant de flics que de fuyards : SUV ou Berline. Beaucoup de flics : Berline seulement.
@@ -128,6 +149,18 @@ Chaque joueur indique sa préférence au salon (peu importe, fuyard, flic ou spe
 - **Fin de manche** : quand tous les fuyards sont tombés (victoire des flics) ou à la fin du temps (les survivants gagnent, avec un bonus). Le classement de la manche s'affiche, puis tout le monde revient au salon. Le **meilleur score du serveur** est gardé tant qu'il tourne.
 
 Touches du multijoueur : **T** ou **Entrée** pour écrire, **K** pour masquer le chat, **L** pour la liste des joueurs, **F** pour poser une herse (flic), **H** pour la sirène (flic), **← →** pour changer de joueur suivi (spectateur), **Échap** pour le menu (la partie continue).
+
+### Ce que ça consomme
+
+Mesuré sur un Mac M4 (le panneau admin affiche les vraies valeurs de ton serveur) :
+
+| Situation | Voitures simulées | Processeur | Mémoire |
+|---|---|---|---|
+| Serveur au salon | 0 | ≈ 1 % | ≈ 300 Mo |
+| 4 fuyards, police serveur, circulation normale | ≈ 100 | ≈ 2 % d'un cœur | ≈ 300 Mo |
+| 20 fuyards, police serveur, circulation normale | ≈ 345 | ≈ 7 % d'un cœur | ≈ 340 Mo |
+
+Les 300 Mo de départ correspondent surtout à la carte, gardée en mémoire pour les collisions et les routes. Le réseau tourne autour de 15 à 30 Ko/s envoyés par joueur.
 
 ## 7. Sécurité et anti-triche
 
@@ -186,7 +219,7 @@ npm start                 # serveur sur le port de config.json (7777)
 npm test                  # tests (protocole, chat, mot de passe, approbation, bannissement)
 ```
 
-**Le jeu servi aux joueurs** est la copie compilée dans `public/`. Pour la mettre à jour, dans le projet du jeu (dossier parent) : `npm run build:mp`, puis commite `public/`. Le protocole (`src/protocol.js`) est partagé avec le jeu : un changement incompatible doit monter `PROTOCOL`. Les joueurs d'une ancienne version sont alors priés de recharger la page.
+**Le jeu servi aux joueurs** est la copie compilée dans `public/`, et le **moteur de simulation** (carte, physique, IA de circulation et de police) est dans `sim/sim.js`. Les deux sont générés depuis le projet du jeu (dossier parent) par `npm run build:mp`. Il n'y a qu'une seule version du code de la physique et de l'IA, celle du jeu. Commite ensuite `public/` et `sim/`. Le protocole (`src/protocol.js`) est partagé avec le jeu : un changement incompatible doit monter `PROTOCOL`. Les joueurs d'une ancienne version sont alors priés de recharger la page.
 
 **Exécutables** : `npm run build`, qui demande [Bun](https://bun.sh). Il intègre `public/` dans le binaire, puis compile pour Windows, macOS et Linux dans `dist/`.
 

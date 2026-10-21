@@ -4,9 +4,9 @@
 
 export const PROTOCOL = 1;
 
-// Types de voiture (octet « kind »)
-export const KIND = { fugitive: 0, interceptor: 1, police: 2, suv: 3 };
-export const KIND_NAME = ['fugitive', 'interceptor', 'police', 'suv'];
+// Types de voiture (octet « kind ») : 0-3 joueurs et police, 4-6 circulation civile
+export const KIND = { fugitive: 0, interceptor: 1, police: 2, suv: 3, sedan: 4, hatch: 5, van: 6 };
+export const KIND_NAME = ['fugitive', 'interceptor', 'police', 'suv', 'sedan', 'hatch', 'van'];
 export const COP_CARS = ['interceptor', 'police', 'suv'];
 
 // Drapeaux d'état (octet « flags »)
@@ -14,10 +14,13 @@ export const F = {
   destroyed: 1, siren: 2, braking: 4, nitro: 8, airborne: 16, handbrake: 32, reverse: 64, tires: 128,
 };
 
-// Identifiants : joueurs 1..255 ; voitures de police IA d'un joueur : 256 + joueur * 32 + n (n < 32)
+// Identifiants : joueurs 1..255 ; voitures de police IA d'un joueur : 256 + joueur * 32 + n (n < 32) ;
+// circulation civile (simulée par le serveur) : à partir de 8448
+export const TRAFFIC_BASE = 8448;
 export const botId = (owner, slot) => 256 + owner * 32 + slot;
-export const botOwner = (id) => (id >= 256 ? (id - 256) >> 5 : 0);
-export const isBot = (id) => id >= 256;
+export const botOwner = (id) => (id >= 256 && id < TRAFFIC_BASE ? (id - 256) >> 5 : 0);
+export const isBot = (id) => id >= 256 && id < TRAFFIC_BASE;
+export const isTraffic = (id) => id >= TRAFFIC_BASE;
 
 export const MAX_BOTS_PER_PLAYER = 12;
 export const ENTITY_BYTES = 25;
@@ -136,13 +139,27 @@ export const SPIKES = {
 export const SPIKE_TTL = 30; // durée de vie d'une herse posée
 
 export const COP_RESPAWN = 40; // secondes avant qu'un flic joueur détruit reparte
-export const HP = { fugitive: 100, interceptor: 110, police: 100, suv: 170 };
+export const HP = { fugitive: 100, interceptor: 110, police: 100, suv: 170, sedan: 90, hatch: 80, van: 140 };
 export const ARMOR = { fugitive: 1, interceptor: 0.95, police: 1, suv: 0.7 };
 
 // Dégâts d'un choc (identique à vehicles/physics.js) : sert de plafond côté serveur
 export function impactDamage(impact) {
   if (impact < 4) return 0;
   return 0.38 * Math.pow(impact - 4, 1.35);
+}
+
+// Police IA en multi : plus il y a de fuyards, plus elle est nombreuse et agressive
+// (même calcul chez le client en mode « réactive » et dans le serveur en mode « serveur »)
+export function botTuning(bots, fugitives, cops) {
+  if (bots === 'off') return null;
+  const n = Math.max(1, fugitives), lvl = bots === 'renforce' ? 1 : 0;
+  return {
+    extraCops: Math.max(0, Math.min(5, lvl * 2 + Math.ceil((n - 1) / 2) - (cops > 0 ? 1 : 0))),
+    aggr: Math.min(0.3, 0.1 * lvl + 0.03 * (n - 1)),
+    speed: Math.min(0.06, 0.025 * lvl + 0.01 * (n - 1)),
+    roadblockK: lvl ? 0.75 : 0.9,
+    heat: Math.min(1.8, 1 + 0.25 * lvl + 0.06 * (n - 1)),
+  };
 }
 
 export const CHAT_MAX = 160;

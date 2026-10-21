@@ -38,6 +38,17 @@ jobs:
       - name: Exécutables
         if: steps.v.outputs.exists == 'false'
         run: npm run build
+      - name: Test de démarrage de l'exécutable Linux
+        if: steps.v.outputs.exists == 'false'
+        run: |
+          V=${{ steps.v.outputs.version }}
+          mkdir -p /tmp/smoke && cp "dist/encavale-server-$V-linux-x64" /tmp/smoke/
+          (cd /tmp/smoke && ./encavale-server-$V-linux-x64 --port 7999 < /dev/null > out.log 2>&1 &)
+          for i in $(seq 1 30); do curl -sf localhost:7999/info && break; sleep 1; done
+          cat /tmp/smoke/out.log
+          curl -sf localhost:7999/info > /dev/null
+          grep -q "Simulation   : prêt" /tmp/smoke/out.log
+          curl -sf localhost:7999/ | grep -q "__CAVALE_MP__"
       - name: Archives
         if: steps.v.outputs.exists == 'false'
         run: |

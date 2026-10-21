@@ -13,6 +13,8 @@ EN CAVALE — serveur multijoueur
 
 3. Dans le jeu, tape /admin TON-CODE dans le chat pour lancer les manches, régler la partie,
    expulser ou bannir. Dans ce terminal, tape « aide » pour toutes les commandes.
+   Panneau admin web (statistiques, joueurs) : http://localhost:7777/admin, avec le mot de passe
+   « panelPassword » affiché au démarrage.
 
 Mac : si macOS bloque le fichier (« développeur non identifié »), clic droit > Ouvrir,
 ou dans un terminal : xattr -d com.apple.quarantine encavale-server-*

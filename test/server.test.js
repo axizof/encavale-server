@@ -9,7 +9,7 @@ import WebSocket from 'ws';
 
 const PORT = 17000 + Math.floor(Math.random() * 1000);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'encavale-'));
-fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ name: 'Test', port: PORT, password: 'secret', joinApproval: true, adminCode: 'code123', maxPlayers: 4 }));
+fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ name: 'Test', port: PORT, password: 'secret', joinApproval: true, adminCode: 'code123', maxPlayers: 4, panelPassword: 'panneau-test' }));
 let proc;
 
 test.before(async () => {
@@ -81,4 +81,22 @@ test('approbation, chat, expulsion, bannissement', async () => {
   const bans = JSON.parse(fs.readFileSync(path.join(dir, 'bans.json'), 'utf8')).bans;
   assert.equal(bans.length, 1);
   admin.ws.close();
+});
+
+test('panneau admin : mot de passe, en-tête anti-CSRF, statistiques', async () => {
+  const U = `http://localhost:${PORT}/admin/api`;
+  const post = (p, body, headers = { 'X-Panel': '1' }) => fetch(`${U}/${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+  assert.equal((await fetch(`${U}/stats`)).status, 401);
+  assert.equal((await post('login', { password: 'panneau-test' }, {})).status, 403); // sans l'en-tête du panneau
+  assert.equal((await post('login', { password: 'faux' })).status, 401);
+  const ok = await post('login', { password: 'panneau-test' });
+  assert.equal(ok.status, 200);
+  const cookie = ok.headers.get('set-cookie').split(';')[0];
+  assert.match(ok.headers.get('set-cookie'), /HttpOnly/);
+  await new Promise((r) => setTimeout(r, 1200));
+  const st = await (await fetch(`${U}/stats?range=5m`, { headers: { cookie } })).json();
+  assert.equal(st.server.name, 'Test');
+  assert.ok(st.now && typeof st.now.cpu === 'number');
+  const log = await (await fetch(`${U}/log`, { headers: { cookie } })).json();
+  assert.ok(!log.join('\n').includes('panneau-test') && !log.join('\n').includes('code123')); // pas de secret dans le journal
 });

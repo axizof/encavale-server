@@ -30,7 +30,7 @@ export async function loadFiles(publicDir) {
   return { files, source: publicDir };
 }
 
-export function makeHandler(files, server) {
+export function makeHandler(files, server, panel = null) {
   // page d'accueil : on signale au jeu qu'il tourne sur un serveur multijoueur
   const rawIndex = files.get('/index.html');
   const index = () => {
@@ -38,8 +38,11 @@ export function makeHandler(files, server) {
     const data = JSON.stringify({ name: server.cfg.name }).replace(/</g, '\\u003c');
     return Buffer.from(rawIndex.toString('utf8').replace('<head>', `<head>\n  <script>window.__CAVALE_MP__ = ${data};</script>`));
   };
-  return (req, res) => {
+  return async (req, res) => {
     const url = new URL(req.url, 'http://x');
+    if (panel && url.pathname.startsWith('/admin')) {
+      try { if (await panel(req, res, url)) return; } catch { if (!res.headersSent) { res.writeHead(500); res.end(); } return; }
+    }
     const send = (code, type, body, extra = {}) => {
       res.writeHead(code, {
         'Content-Type': type, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY',

@@ -11,6 +11,8 @@ import { loadFiles, makeHandler } from './http.js';
 import { startConsole } from './console.js';
 import { PROTOCOL } from './protocol.js';
 import { log } from './log.js';
+import { Metrics } from './metrics.js';
+import { makePanel } from './panel.js';
 import pkg from '../package.json' with { type: 'json' };
 
 export const VERSION = pkg.version;
@@ -31,25 +33,41 @@ const bans = new Bans(path.join(path.dirname(cfgFile), 'bans.json'));
 const srv = new GameServer(cfg, { bans, saveConfig: save });
 const { files, source } = await loadFiles(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'public'));
 
-const httpServer = http.createServer(makeHandler(files, srv));
+// moteur de simulation (circulation partagée, police IA calculée par le serveur)
+let simInfo = 'absent (circulation propre à chaque joueur)';
+try {
+  const { ServerSim } = await import('../sim/sim.js');
+  const sim = await ServerSim.create();
+  srv.attachSim(sim);
+  simInfo = `prêt (carte construite en ${sim.buildMs} ms)`;
+} catch (e) {
+  simInfo = `absent (${e.message.slice(0, 80)}) : circulation propre à chaque joueur`;
+}
+
+const metrics = new Metrics(srv);
+srv.metrics = metrics;
+const panel = makePanel(srv, metrics, { version: VERSION, protocol: PROTOCOL });
+const httpServer = http.createServer(makeHandler(files, srv, panel));
 const wss = new WebSocketServer({ server: httpServer, path: '/ws', maxPayload: 16 * 1024, perMessageDeflate: false });
 wss.on('connection', (ws, req) => srv.onConnection(ws, req));
 wss.on('error', () => {}); // déjà signalé par le serveur http (port occupé…)
 
 function banner() {
   const ips = Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => i.address);
-  log.out('');
-  log.out(log.bold(`  EN CAVALE — serveur multijoueur v${VERSION} (protocole ${PROTOCOL})`));
-  log.out(`  Nom          : ${cfg.name}`);
-  log.out(`  Sur ce PC    : ${log.cyan(`http://localhost:${port}`)}`);
-  for (const ip of ips) log.out(`  Réseau local : ${log.cyan(`http://${ip}:${port}`)}`);
-  log.out(`  Internet     : http://${log.yellow('TON-IP-PUBLIQUE')}:${port}  (ouvre/redirige le port ${port} TCP sur ta box ou ton VPS)`);
-  log.out(`  Mot de passe : ${cfg.password ? 'oui' : 'non'} · approbation des arrivées : ${cfg.joinApproval ? 'oui' : 'non'} · ${cfg.maxPlayers} joueurs max`);
-  log.out(`  Code admin   : ${log.yellow(cfg.adminCode)}  (dans le jeu : /admin ${cfg.adminCode})`);
-  log.out(`  Jeu servi    : ${files.has('/index.html') ? source : log.yellow('ABSENT (dossier public/ vide)')}`);
-  log.out(log.dim(`  Config       : ${cfgFile}`));
-  log.out(log.dim('  Tape « aide » pour la liste des commandes.'));
-  log.out('');
+  log.plain('');
+  log.plain(log.bold(`  EN CAVALE — serveur multijoueur v${VERSION} (protocole ${PROTOCOL})`));
+  log.plain(`  Nom          : ${cfg.name}`);
+  log.plain(`  Sur ce PC    : ${log.cyan(`http://localhost:${port}`)}`);
+  for (const ip of ips) log.plain(`  Réseau local : ${log.cyan(`http://${ip}:${port}`)}`);
+  log.plain(`  Internet     : http://${log.yellow('TON-IP-PUBLIQUE')}:${port}  (ouvre/redirige le port ${port} TCP sur ta box ou ton VPS)`);
+  log.plain(`  Mot de passe : ${cfg.password ? 'oui' : 'non'} · approbation des arrivées : ${cfg.joinApproval ? 'oui' : 'non'} · ${cfg.maxPlayers} joueurs max`);
+  log.plain(`  Code admin   : ${log.yellow(cfg.adminCode)}  (dans le jeu : /admin ${cfg.adminCode})`);
+  log.plain(`  Panneau web  : ${log.cyan(`http://localhost:${port}/admin`)}  mot de passe : ${log.yellow(cfg.panelPassword)}`);
+  log.plain(`  Jeu servi    : ${files.has('/index.html') ? source : log.yellow('ABSENT (dossier public/ vide)')}`);
+  log.plain(`  Simulation   : ${simInfo}`);
+  log.plain(log.dim(`  Config       : ${cfgFile}`));
+  log.plain(log.dim('  Tape « aide » pour la liste des commandes.'));
+  log.plain('');
 }
 
 let stopping = false;

@@ -12,7 +12,7 @@ import crypto from 'node:crypto';
 import {
   PROTOCOL, KIND, KIND_NAME, COP_CARS, F, botId, MAX_BOTS_PER_PLAYER, MSG_SNAPSHOT, MSG_STATE,
   FUGITIVE_COLORS, PRESETS, copCountFor, allowedCopCars, SPIKES, SPIKE_TTL, COP_RESPAWN, HP, ARMOR,
-  impactDamage, encodeEntities, decodeEntities,
+  impactDamage, encodeEntities, decodeEntities, botTuning,
 } from './protocol.js';
 import { cleanText, cleanName, Bucket, ChatGuard } from './text.js';
 import { verifyTicket } from './identity.js';
@@ -33,7 +33,8 @@ const CAPS = {
 const MULTS = [1, 1.5, 2, 3, 4, 6];
 const REPAIR = { pickup: { max: 40, cd: 12 }, deliver: { max: 25, cd: 18 }, challenge: { max: 35, cd: 20 } };
 
-const DEFAULT_SETTINGS = { preset: 'classique', cops: 0, bots: 'normal', spikes: 'off', timeLimit: 0, copCars: 'auto', weather: 'dynamic', tod: 'sunset' };
+const DEFAULT_SETTINGS = { preset: 'classique', cops: 0, bots: 'normal', spikes: 'off', timeLimit: 0, copCars: 'auto', weather: 'dynamic', tod: 'sunset', policeSim: 'client', traffic: 'normal' };
+const TRAFFIC = ['off', 'light', 'normal', 'dense'];
 const BOTS = ['off', 'normal', 'renforce'];
 const WEATHERS = ['dynamic', 'clear', 'cloudy', 'rain', 'storm', 'fog'];
 const TODS = ['day', 'sunset', 'night'];
@@ -51,6 +52,9 @@ export function normalizeSettings(s = {}) {
   if (Array.isArray(o.copCars) && !o.copCars.length) o.copCars = 'auto';
   o.weather = WEATHERS.includes(s.weather) ? s.weather : DEFAULT_SETTINGS.weather;
   o.tod = TODS.includes(s.tod) ? s.tod : DEFAULT_SETTINGS.tod;
+  // police IA calculée par le joueur poursuivi (« réactive ») ou par le serveur (anti-triche)
+  o.policeSim = s.policeSim === 'server' ? 'server' : 'client';
+  o.traffic = TRAFFIC.includes(s.traffic) ? s.traffic : DEFAULT_SETTINGS.traffic;
   return o;
 }
 
@@ -84,6 +88,50 @@ export class GameServer {
     this.lobbyT = 0;
     this.lastResults = null;
     this.timer = setInterval(() => this.tick(), 1000 / TICK_HZ);
+    this.sim = null; // moteur serveur (circulation, police serveur) : branché par attachSim()
+    this.simTimer = null;
+    this.bytesOut = 0;
+    this.bytesIn = 0;
+  }
+
+  attachSim(sim) {
+    this.sim = sim;
+    // 30 pas par seconde (la physique fait ses propres sous-pas à 120 Hz)
+    this.simTimer = setInterval(() => this.simTick(), 1000 / 30);
+  }
+
+  simTick() {
+    const sim = this.sim;
+    if (!sim || !sim.active) return;
+    const t0 = performance.now();
+    sim.step(1 / 30);
+    this.simMs = performance.now() - t0;
+    for (const e of sim.drain()) this.onSimEvent(e);
+  }
+
+  onSimEvent(e) {
+    if (e.t === 'spike') { this.broadcast(e); return; }
+    if (e.t === 'spikedel') { this.broadcast(e); return; }
+    const p = this.players.get(e.to);
+    if (!p || !p.inRound) return;
+    switch (e.t) {
+      case 'msg': this.send(p.conn, { t: 'msg', x: String(e.x).slice(0, 80), k: e.k }); break;
+      case 'tires': this.send(p.conn, { t: 'tires' }); break;
+      case 'pts': {
+        if (!p.alive || this.phase !== 'playing') break;
+        const v = Math.round(Math.min(e.b, 3000) * (MULTS.includes(e.m) ? e.m : 1));
+        p.score += v;
+        this.lobbyDirty = true;
+        this.send(p.conn, { t: 'pts', l: e.l, v });
+        break;
+      }
+      case 'busted': if (p.alive && this.phase === 'playing') this.eliminate(p, 'busted', null); break;
+      case 'wanted':
+        p.simStars = e.s;
+        p.simBust = e.bust;
+        this.send(p.conn, e);
+        break;
+    }
   }
 
   now() { return (Date.now() - this.t0) / 1000; }
@@ -114,19 +162,22 @@ export class GameServer {
 
   send(conn, msg) {
     if (!conn || conn.closed || conn.ws.readyState !== 1) return;
-    conn.ws.send(JSON.stringify(msg));
+    const s = JSON.stringify(msg);
+    this.bytesOut += s.length;
+    conn.ws.send(s);
   }
 
   sendBin(conn, bytes) {
     if (!conn || conn.closed || conn.ws.readyState !== 1) return;
     // file d'attente pleine (connexion lente) : on saute une image plutôt que d'accumuler du retard
     if (conn.ws.bufferedAmount > 256 * 1024) return;
+    this.bytesOut += bytes.byteLength;
     conn.ws.send(bytes, { binary: true });
   }
 
   broadcast(msg, except = null) {
     const s = JSON.stringify(msg);
-    for (const p of this.players.values()) if (p !== except && p.conn.ws.readyState === 1) p.conn.ws.send(s);
+    for (const p of this.players.values()) if (p !== except && p.conn.ws.readyState === 1) { p.conn.ws.send(s); this.bytesOut += s.length; }
   }
 
   sys(text, to = null) {
@@ -152,6 +203,7 @@ export class GameServer {
     const p = conn.player;
     if (!p) return;
     this.players.delete(p.id);
+    if (this.sim) this.sim.removePlayer(p.id);
     log.info(`${log.bold(p.name)} est parti (${this.players.size}/${this.cfg.maxPlayers})`);
     this.sys(`${p.name} a quitté le serveur`);
     if (p.inRound && p.alive && p.role === 'fugitive') this.checkRoundEnd();
@@ -163,6 +215,7 @@ export class GameServer {
 
   onMessage(conn, data, isBinary) {
     if (conn.closed) return;
+    this.bytesIn += data.length || data.byteLength || 0;
     if (isBinary) {
       if (!conn.player || !conn.binBucket.take()) return;
       const bytes = data instanceof Buffer ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : new Uint8Array(data);
@@ -196,6 +249,9 @@ export class GameServer {
       case 'spk': this.onSpike(p, m); break;
       case 'spkhit': this.onSpikeHit(p, m); break;
       case 'busted': this.onBustedByBots(p); break;
+      case 'alarm': this.onAlarm(p, m); break;
+      case 'heat': this.onHeat(p, m); break;
+      case 'dropstar': this.onDropStar(p); break;
       case 'view': p.view = { x: num(m.x, -3000, 3000) ?? 0, z: num(m.z, -3000, 3000) ?? 0 }; break;
       default:
         if (p.admin) this.onAdmin(p, m);
@@ -322,7 +378,7 @@ export class GameServer {
     for (const b of this.bests.values()) if (!top || b.score > top.score) top = b;
     return {
       t: 'lobby', phase: this.phase, phaseEnd: this.phaseEnd, settings: this.settings, players,
-      top, presets: PRESETS, pending: this.pending.size,
+      top, presets: PRESETS, pending: this.pending.size, sim: !!this.sim,
     };
   }
 
@@ -372,7 +428,8 @@ export class GameServer {
 
   applySettings(s, by) {
     if (this.phase === 'playing' || this.phase === 'countdown') return;
-    const merged = s.preset && s.preset !== this.settings.preset ? { ...PRESETS[s.preset], preset: s.preset, weather: this.settings.weather, tod: this.settings.tod } : { ...this.settings, ...s };
+    const keep = { weather: this.settings.weather, tod: this.settings.tod, policeSim: this.settings.policeSim, traffic: this.settings.traffic };
+    const merged = s.preset && s.preset !== this.settings.preset ? { ...PRESETS[s.preset], preset: s.preset, ...keep } : { ...this.settings, ...s };
     this.settings = normalizeSettings(merged);
     this.cfg.settings = this.settings;
     this.saveConfig(this.cfg);
@@ -466,6 +523,12 @@ export class GameServer {
       spikeRecharge: spk.recharge * (1 + 0.2 * Math.max(0, copN - 1)),
       order: [...fugs, ...cops].map((p) => p.id),
     };
+    // moteur serveur : circulation partagée, police IA calculée par le serveur si demandé
+    const policeServer = !!this.sim && S.policeSim === 'server' && bots !== 'off';
+    this.round.policeSim = policeServer ? 'server' : 'client';
+    this.round.traffic = this.sim ? S.traffic : 'local';
+    if (this.sim) this.sim.startRound({ traffic: S.traffic, policeServer, tuning: botTuning(bots, fugs.length, copN) });
+    for (const p of [...fugs, ...cops]) { p.simStars = 0; p.simBust = 0; }
     // placement de départ libre pendant le compte à rebours (+ quelques secondes)
     for (const p of [...fugs, ...cops]) p.tpAllow = { reason: 'spawn', until: this.round.startAt + 1 };
     this.phase = 'countdown';
@@ -490,7 +553,7 @@ export class GameServer {
     const r = this.round;
     return {
       t: 'round', id: r.id, seed: r.seed, startAt: r.startAt, endAt: r.endAt, now: this.now(), phase: this.phase,
-      bots: r.bots, spikes: r.spikes, weather: this.settings.weather, tod: this.settings.tod,
+      bots: r.bots, spikes: r.spikes, weather: this.settings.weather, tod: this.settings.tod, policeSim: r.policeSim, traffic: r.traffic,
       fugitives: r.fugitives, cops: r.cops, order: r.order,
       roster: [...this.players.values()].filter((p) => p.inRound).map((p) => ({ id: p.id, n: p.name, role: p.role, kind: p.kind, col: p.color })),
     };
@@ -525,6 +588,7 @@ export class GameServer {
     this.phase = 'results';
     this.phaseEnd = now + RESULTS_TIME;
     this.lastResults = { t: 'results', winner, text, rows, top, until: this.phaseEnd };
+    if (this.sim) this.sim.stopRound();
     this.broadcast(this.lastResults);
     this.spikes.clear();
     log.ok(`Fin de la manche ${this.round.id} : ${text}`);
@@ -532,6 +596,7 @@ export class GameServer {
   }
 
   toLobby() {
+    if (this.sim) this.sim.stopRound();
     this.phase = 'lobby';
     this.phaseEnd = 0;
     this.round = null;
@@ -545,6 +610,7 @@ export class GameServer {
     p.alive = false;
     p.hp = 0;
     p.deadAt = this.now();
+    if (this.sim && this.sim.active && p.st) this.sim.setPlayer(p.id, p.st, p.role, p.kind, false);
     p.stats.deaths++;
     p.bust = 0;
     const killer = by && by.inRound && by.role === 'cop' && by !== p ? by : null;
@@ -600,6 +666,7 @@ export class GameServer {
     }
     p.st = me;
     p.stT = now;
+    if (this.sim && this.sim.active) this.sim.setPlayer(p.id, me, p.role, p.kind, p.alive);
     // police IA du fuyard (affichée chez les autres)
     if (p.role === 'fugitive' && p.alive && this.round?.bots !== 'off') {
       p.bots = bots.slice(0, MAX_BOTS_PER_PLAYER).filter((b) => b.kind >= 1 && b.kind <= 3 && b.id < 32 && hyp(b.x, b.z, me.x, me.z) < 1300);
@@ -676,7 +743,7 @@ export class GameServer {
     if (base === null || mult === null) return;
     const capKey = Object.keys(CAPS).find((k) => label.startsWith(k));
     const cap = capKey ? CAPS[capKey] : 1500;
-    const stars = p.st ? Math.min(6, p.st.extra) : 0;
+    const stars = this.round?.policeSim === 'server' ? p.simStars || 0 : p.st ? Math.min(6, p.st.extra) : 0;
     const okMult = MULTS.some((x) => Math.abs(mult - x) < 1e-6 || Math.abs(mult - 2 * x) < 1e-6) && mult <= 2 * MULTS[Math.max(0, stars - 1)] + 1e-6;
     p.score += Math.round(Math.min(base, cap) * (okMult ? mult : 1));
     this.lobbyDirty = true;
@@ -750,6 +817,42 @@ export class GameServer {
     this.lobbyDirty = true;
   }
 
+  // ---- police serveur : événements venus du jeu du fuyard (braquage, témoins, défi « une étoile de moins »)
+  squadOf(p) {
+    if (!this.sim || this.round?.policeSim !== 'server' || !p.inRound || p.role !== 'fugitive' || !p.alive || this.phase !== 'playing') return null;
+    return this.sim.squad(p.id);
+  }
+
+  onAlarm(p, m) {
+    const sq = this.squadOf(p);
+    const x = num(m.x, -1500, 1500), z = num(m.z, -1500, 1500);
+    if (!sq || x === null || z === null || !p.st || hyp(x, z, p.st.x, p.st.z) > 150) return;
+    const now = this.now();
+    if (now - (p.alarmT ?? -99) < 15) return;
+    p.alarmT = now;
+    sq.wanted.alarm(x, z, Math.min(40, num(m.h, 0, 100) ?? 18));
+  }
+
+  onHeat(p, m) {
+    const sq = this.squadOf(p);
+    if (!sq) return;
+    const now = this.now();
+    p.heatWin = (p.heatWin || []).filter(([t]) => now - t < 5);
+    const h = Math.min(12, num(m.h, 0, 100) ?? 0);
+    if (p.heatWin.reduce((a, [, v]) => a + v, 0) + h > 30) return; // au plus 30 de chaleur par 5 s
+    p.heatWin.push([now, h]);
+    if (h > 0) sq.wanted.addHeat(h);
+    if (m.w) sq.wanted.witness();
+  }
+
+  onDropStar(p) {
+    const sq = this.squadOf(p);
+    const now = this.now();
+    if (!sq || now - (p.dropT ?? -99) < 40) return;
+    p.dropT = now;
+    sq.wanted.dropStar();
+  }
+
   onBustedByBots(p) {
     if (!p.inRound || p.role !== 'fugitive' || !p.alive || this.phase !== 'playing' || this.round?.bots === 'off') return;
     this.eliminate(p, 'busted', null);
@@ -758,6 +861,12 @@ export class GameServer {
   // ------------------------------------------------------------------ boucle
 
   tick() {
+    const t0 = performance.now();
+    this.tickInner();
+    this.tickMs = (this.tickMs || 0) * 0.9 + (performance.now() - t0) * 0.1;
+  }
+
+  tickInner() {
     const now = this.now();
     const dt = 1 / TICK_HZ;
     if (this.phase === 'countdown' && now >= this.phaseEnd) {
@@ -785,7 +894,8 @@ export class GameServer {
         let near = null;
         if (sp < 2.2) for (const c of cops) if (hyp(c.st.x, c.st.z, p.st.x, p.st.z) < 7.5 && Math.hypot(c.st.vx, c.st.vz) < 6) { near = c; break; }
         p.bust = near ? p.bust + dt / 3.2 : Math.max(0, p.bust - dt * 0.9);
-        if (Math.abs(p.bust - p.bustSent) > 0.04 || (p.bust === 0 && p.bustSent > 0)) { p.bustSent = p.bust; this.send(p.conn, { t: 'bust', p: Math.min(1, p.bust) }); }
+        const shown = Math.max(p.bust, p.simBust || 0);
+        if (Math.abs(shown - p.bustSent) > 0.04 || (shown === 0 && p.bustSent > 0)) { p.bustSent = shown; this.send(p.conn, { t: 'bust', p: Math.min(1, shown) }); }
         if (p.bust >= 1) this.eliminate(p, 'busted', near);
       }
       if (p.role === 'cop') {
@@ -835,7 +945,10 @@ export class GameServer {
       }
       bots.sort((a, b) => a[0] - b[0]);
       for (const [, e] of bots.slice(0, 48)) list.push(e);
-      this.sendBin(r.conn, encodeEntities(MSG_SNAPSHOT, now, list));
+      // circulation et police du serveur (ses propres polices IA aussi : c'est le serveur qui les fait rouler)
+      if (this.sim && this.sim.active && view) for (const e of this.sim.entities(view)) if (list.length < 250) list.push(e);
+      const bytes = encodeEntities(MSG_SNAPSHOT, now, list);
+      this.sendBin(r.conn, bytes);
     }
   }
 
