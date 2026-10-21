@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <!-- en http, le navigateur coupe le chiffrement (crypto.subtle) : pas de classement possible.
+       Exception : la page servie par un serveur multijoueur (http://IP:port), marquée par window.__CAVALE_MP__ -->
+  <script>if (!window.__CAVALE_MP__ && location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) location.replace('https:' + location.href.slice(5));</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>En Cavale</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Russo+One&display=swap" rel="stylesheet" />
+  <script type="module" crossorigin src="./assets/index-BftBge8R.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-D2lW1D6X.css">
+</head>
+<body>
+  <div id="gl"></div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="topLeft">
+      <div id="timer">00:00</div>
+      <div id="scoreRow"><span class="lbl">SCORE</span><span id="score">0</span><span id="mult">×1</span></div>
+      <div id="copsRow"><span class="lbl">FLICS DÉTRUITS</span><span id="copsKilled">0</span></div>
+      <div id="weatherRow"></div>
+    </div>
+    <div id="wanted">
+      <div id="stars">
+        <span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span>
+      </div>
+      <div id="wantedBar"><div id="wantedFill"></div></div>
+      <div id="wantedState" class="calm">CALME</div>
+    </div>
+    <div id="objective" class="hidden">
+      <span id="objTitle">COUP</span><span id="objName"></span><span id="objDist"></span><span id="objTimer"></span><span id="objLoot"></span>
+      <div id="objBar" class="hidden"><div id="objFill"></div></div>
+    </div>
+    <div id="challenge" class="hidden">
+      <span id="chTag">DÉFI</span><span id="chText"></span><span id="chProg"></span><span id="chTime"></span><span id="chReward"></span>
+      <div id="chBar"><div id="chFill"></div></div>
+    </div>
+    <div id="zone"><div id="zoneName"></div><div id="zoneSub"></div></div>
+    <div id="msgs"></div>
+    <div id="popups"></div>
+    <div id="drift" class="hidden"></div>
+    <div id="bust" class="hidden"><div class="label">ARRESTATION EN COURS — BOUGE !</div><div class="bar"><div id="bustFill"></div></div></div>
+    <div id="hidden" class="hidden">À COUVERT — invisible pour l'hélico</div>
+    <canvas id="minimap" width="240" height="240"></canvas>
+    <div id="dash">
+      <canvas id="speedo" width="280" height="280"></canvas>
+      <div id="bars">
+        <div class="barRow"><span class="ico">✚</span><div class="bar" id="health"><div id="healthFill"></div></div></div>
+        <div class="barRow"><span class="ico nitro">N₂O</span><div class="bar" id="nitro"><div id="nitroFill"></div></div></div>
+        <div id="tires" class="hidden">PNEUS CREVÉS</div>
+      </div>
+    </div>
+    <div id="hint">C : regarder derrière · V : caméra · TAB : carte · ÉCHAP : pause</div>
+    <div id="bigmap" class="hidden"><canvas id="bigmapCanvas" width="900" height="900"></canvas><div class="close" id="bigmapHint">TAB pour fermer</div></div>
+    <div id="freecamHud">
+      <div class="fcTitle">MODE EXPLORATION</div>
+      <div id="fcInfo"></div>
+      <div class="fcKeys">
+        <div><kbd>Clic</kbd> capturer la souris · <kbd>Échap</kbd> la libérer</div>
+        <div><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> se déplacer</div>
+        <div><kbd>ESPACE</kbd> / <kbd>E</kbd> monter · <kbd>C</kbd> / <kbd>A</kbd> descendre</div>
+        <div><kbd>SHIFT</kbd> rapide · <kbd>Molette</kbd> vitesse</div>
+        <div><kbd>TAB</kbd> carte (clic = se téléporter)</div>
+        <div><kbd>T</kbd> heure du jour · <kbd>Y</kbd> météo · <kbd>H</kbd> masquer l'aide</div>
+        <div><kbd>ENTRÉE</kbd> jouer d'ici</div>
+      </div>
+      <div class="row">
+        <button id="btnFcPlay">JOUER D'ICI</button>
+        <button id="btnFcMenu">MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="flashFx"></div>
+
+  <!-- Intro cinématique -->
+  <div id="cinema" class="hidden">
+    <div class="cbar top"></div><div class="cbar bottom"></div>
+    <div id="cineTitle"><div id="cineKicker">BRAQUAGE</div><div id="cineName"></div><div id="cinePlace"></div><div id="cineLoot"></div></div>
+    <div id="cineSkip">ENTRÉE / ESPACE : passer</div>
+  </div>
+
+  <!-- Menu principal -->
+  <div id="menu" class="screen hidden">
+    <div class="menuInner">
+      <div class="logo">
+        <div class="logoTop">EN</div>
+        <div class="logoMain">CAVALE</div>
+        <div class="logoSub">Course-poursuite · 6 étoiles · aucune pitié</div>
+      </div>
+      <div class="menuCols">
+        <div class="menuMain">
+          <button id="btnPlay" class="big">JOUER</button>
+          <button id="btnCop">MODE FLIC</button>
+          <button id="btnMulti">MULTIJOUEUR</button>
+          <button id="btnFreecam">EXPLORER LA CARTE</button>
+          <button id="btnControls">COMMANDES</button>
+          <div id="best"></div>
+        </div>
+        <div class="menuOpts">
+          <div class="opt">
+            <div class="optLbl">MOMENT DE LA JOURNÉE</div>
+            <div class="seg" data-opt="time">
+              <button data-v="day">Jour</button><button data-v="sunset">Coucher</button><button data-v="night">Nuit</button>
+            </div>
+          </div>
+          <div class="opt">
+            <div class="optLbl">MÉTÉO</div>
+            <div class="seg" data-opt="weather">
+              <button data-v="dynamic">Variable</button><button data-v="clear">Beau temps</button>
+            </div>
+          </div>
+          <div class="opt">
+            <div class="optLbl">QUALITÉ GRAPHIQUE</div>
+            <div class="seg" data-opt="quality">
+              <button data-v="low">Bas</button><button data-v="medium">Moyen</button><button data-v="high">Élevé</button>
+            </div>
+          </div>
+          <div class="opt">
+            <div class="optLbl">VOLUME</div>
+            <input type="range" class="optVolume" min="0" max="100" value="80" />
+          </div>
+          <div class="opt">
+            <button id="btnOptions">PLUS D'OPTIONS GRAPHIQUES…</button>
+          </div>
+        </div>
+        <div class="menuBoard">
+          <div class="boardHead">
+            <span>CLASSEMENT</span>
+            <div class="seg small" id="boardTabs"><button data-v="robber" class="active">Points</button><button data-v="heists">Livrés</button><button data-v="cop">Flic</button></div>
+          </div>
+          <div id="boardHint">Meilleur score en mode braquage</div>
+          <ol id="boardList"><li class="muted">Chargement…</li></ol>
+          <div id="boardMe" class="hidden"></div>
+          <div id="account"></div>
+        </div>
+      </div>
+      <div class="menuFoot">Braque, file chez le receleur avant la fin du chrono, encaisse, recommence. La police ne lâche rien : jusqu'à 6 étoiles. Sans fin — jusqu'à ce qu'on t'arrête.</div>
+    </div>
+  </div>
+
+  <!-- Commandes -->
+  <div id="controls" class="screen hidden">
+    <div class="panel controlsPanel">
+      <h2>COMMANDES</h2>
+      <div class="ctrlCols">
+      <div>
+      <div class="ctrlGrid">
+        <div><kbd>Z</kbd><kbd>W</kbd><kbd>↑</kbd></div><div>Accélérer</div>
+        <div><kbd>S</kbd><kbd>↓</kbd></div><div>Freiner / marche arrière</div>
+        <div><kbd>Q</kbd><kbd>D</kbd><kbd>A</kbd><kbd>← →</kbd></div><div>Tourner</div>
+        <div><kbd>ESPACE</kbd></div><div>Frein à main (dérapage)</div>
+        <div><kbd>SHIFT</kbd></div><div>Nitro</div>
+        <div><kbd>C</kbd></div><div>Regarder derrière</div>
+        <div><kbd>V</kbd></div><div>Changer de caméra</div>
+        <div><kbd>TAB</kbd></div><div>Grande carte</div>
+        <div><kbd>G</kbd></div><div>Afficher / masquer le GPS au sol</div>
+        <div><kbd>R</kbd></div><div>Se remettre sur la route (à l'arrêt, pas avec les flics collés)</div>
+        <div><kbd>H</kbd></div><div>Klaxon (mode flic : sirène)</div>
+        <div><kbd>M</kbd></div><div>Couper le son</div>
+        <div><kbd>)</kbd><kbd>F3</kbd></div><div>Infos de debug (perfs)</div>
+        <div><kbd>ÉCHAP</kbd><kbd>P</kbd></div><div>Pause</div>
+      </div>
+      <p class="tips">Manette supportée : gâchettes pour accélérer / freiner, A = frein à main, X = nitro, B = regarder derrière.</p>
+      <h3>MULTIJOUEUR</h3>
+      <div class="ctrlGrid">
+        <div><kbd>T</kbd><kbd>ENTRÉE</kbd></div><div>Écrire dans le chat</div>
+        <div><kbd>K</kbd></div><div>Masquer / afficher le chat</div>
+        <div><kbd>L</kbd></div><div>Liste des joueurs</div>
+        <div><kbd>F</kbd></div><div>Poser une herse (flic)</div>
+        <div><kbd>← →</kbd></div><div>Changer de joueur suivi (spectateur)</div>
+      </div>
+      </div>
+      <div>
+      <h3>ASTUCES</h3>
+      <ul class="tips">
+        <li>Le coup suivant est en jaune sur la carte : reste quelques secondes dans le cercle (même en roulant) pour le braquer. Puis livre le butin au receleur (en vert) avant la fin du chrono : reste dans sa zone sans aucun flic à moins de 35 m.</li>
+        <li>Chaque gros choc fait s'envoler des billets. Le butin encaissé est multiplié par tes étoiles.</li>
+        <li>Si la police te perd de vue, les étoiles clignotent : reste caché jusqu'au compte à rebours pour les semer.</li>
+        <li>Parkings couverts, granges et entrepôts te cachent de l'hélicoptère (icônes bleues sur la carte).</li>
+        <li>Frôler les voitures à pleine vitesse recharge la nitro. Les ruelles et le parc à conteneurs sont parfaits pour feinter.</li>
+        <li>Un choc de face fait moins mal qu'un choc sur le flanc. À l'arrêt, un flic lancé te détruit.</li>
+        <li>Plus tu as d'étoiles, plus tes points sont multipliés (jusqu'à ×6). Dérapages, sauts et frôlements rapportent gros.</li>
+        <li>Les tremplins jaunes et noirs (triangles sur la carte) permettent de sauter par-dessus les ennuis. Attention à l'atterrissage.</li>
+      </ul>
+      </div>
+      </div>
+      <button id="btnCloseControls">RETOUR</button>
+    </div>
+  </div>
+
+  <!-- Options (menu principal et pause) -->
+  <div id="options" class="screen hidden">
+    <div class="panel options">
+      <h2>OPTIONS</h2>
+      <div class="optGrid">
+        <div class="optLbl">QUALITÉ GRAPHIQUE</div>
+        <div class="seg" data-opt="quality"><button data-v="low">Bas</button><button data-v="medium">Moyen</button><button data-v="high">Élevé</button></div>
+        <div class="optHelp">Ombres, anticrénelage, halo lumineux (bloom).</div>
+
+        <div class="optLbl">DISTANCE D'AFFICHAGE <span id="rdVal" class="optVal"></span></div>
+        <input type="range" id="optRender" min="300" max="3000" step="100" />
+        <div class="optHelp">Le sol reste toujours visible. Plus c'est bas, plus tôt les arbres s'allègent puis disparaissent, et plus tôt les bâtiments et objets lointains se cachent dans la brume.</div>
+
+        <div class="optLbl">ÉCHELLE DE RENDU <span id="rsVal" class="optVal"></span></div>
+        <input type="range" id="optScale" min="50" max="100" step="5" />
+        <div class="optHelp">Résolution interne : la baisser soulage beaucoup la carte graphique (image un peu plus floue).</div>
+
+        <div class="optLbl">MOMENT DE LA JOURNÉE</div>
+        <div class="seg" data-opt="time"><button data-v="day">Jour</button><button data-v="sunset">Coucher</button><button data-v="night">Nuit</button></div>
+        <div class="optHelp"></div>
+
+        <div class="optLbl">MÉTÉO</div>
+        <div class="seg" data-opt="weather"><button data-v="dynamic">Variable</button><button data-v="clear">Beau temps</button></div>
+        <div class="optHelp"></div>
+
+        <div class="optLbl">GPS AU SOL</div>
+        <div class="seg" data-opt="gps"><button data-v="on">Affiché</button><button data-v="off">Masqué</button></div>
+        <div class="optHelp">Flèches posées sur la route vers l'objectif. Touche <kbd>G</kbd> en jeu.</div>
+
+        <div class="optLbl">VOLUME</div>
+        <input type="range" class="optVolume" min="0" max="100" />
+        <div class="optHelp"></div>
+      </div>
+      <p class="tips">Touche <kbd>)</kbd> ou <kbd>F3</kbd> en jeu : FPS et infos de performance.</p>
+      <button id="btnCloseOptions" class="big">RETOUR</button>
+    </div>
+  </div>
+
+  <!-- Pause -->
+  <div id="pause" class="screen hidden">
+    <div class="panel small">
+      <h2>PAUSE</h2>
+      <button id="btnResume" class="big">REPRENDRE</button>
+      <button id="btnRestart">RECOMMENCER</button>
+      <button id="btnPauseOptions">OPTIONS</button>
+      <button id="btnPauseControls">COMMANDES</button>
+      <button id="btnQuit">MENU PRINCIPAL</button>
+    </div>
+  </div>
+
+  <!-- Fin de partie -->
+  <div id="gameover" class="screen hidden">
+    <div class="panel">
+      <h1 id="goTitle">ARRÊTÉ</h1>
+      <div id="goSub"></div>
+      <div class="goStats" id="goStats"></div>
+      <div id="goBest"></div>
+      <div id="submitBox" class="hidden">
+        <div class="sbTitle">CLASSEMENT EN LIGNE</div>
+        <div class="sbRow"><input id="sbPseudo" maxlength="16" placeholder="Ton pseudo" autocomplete="nickname" /><button id="sbSend">ENVOYER MON SCORE</button></div>
+        <div id="sbCaptcha"></div>
+        <div id="sbStatus"></div>
+      </div>
+      <div class="row">
+        <button id="btnAgain" class="big">REJOUER</button>
+        <button id="btnMenu">MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Multijoueur : page servie par un serveur En Cavale (http://IP:port) ===== -->
+  <div id="mpConnect" class="screen hidden">
+    <div class="panel mpConnectPanel">
+      <div class="mpKicker">SERVEUR MULTIJOUEUR</div>
+      <h2 id="mpcName">…</h2>
+      <div id="mpcInfo" class="mpMuted"></div>
+      <div id="mpcMotd" class="mpMotd"></div>
+      <div id="mpcDiscord" class="mpDiscord hidden"></div>
+      <label class="mpField" id="mpcPseudoRow"><span>PSEUDO</span><input id="mpcPseudo" maxlength="16" autocomplete="nickname" spellcheck="false" /></label>
+      <label class="mpField hidden" id="mpcPassRow"><span>MOT DE PASSE DU SERVEUR</span><input id="mpcPass" type="password" maxlength="64" autocomplete="off" /></label>
+      <details class="mpHost"><summary>Je suis l'hôte (code admin)</summary><label class="mpField"><span>CODE ADMIN</span><input id="mpcAdmin" maxlength="32" autocomplete="off" spellcheck="false" /></label></details>
+      <button id="mpcJoin" class="big">REJOINDRE</button>
+      <div id="mpcStatus" class="mpStatus"></div>
+      <p class="tips" id="mpcTip">Pour jouer avec ton compte Discord, passe par le bouton MULTIJOUEUR du site.</p>
+    </div>
+  </div>
+
+  <div id="mpLobby" class="screen hidden">
+    <div class="mpLobbyGrid">
+      <header class="mpHead">
+        <div>
+          <div class="mpKicker">SALON MULTIJOUEUR</div>
+          <h1 id="mplName"></h1>
+          <div id="mplMotd" class="mpMuted"></div>
+        </div>
+        <div class="mpHeadRight">
+          <div id="mplPhase" class="mpPhase"></div>
+          <button id="mplOptions">OPTIONS</button>
+          <button id="mplLeave">QUITTER</button>
+        </div>
+      </header>
+      <section class="mpCol">
+        <div class="mpSecTitle">JOUEURS <span id="mplCount" class="mpMuted"></span></div>
+        <ol id="mplPlayers" class="mpPlayerList"></ol>
+        <div id="mplTop" class="mpTopScore"></div>
+      </section>
+      <section class="mpCol mpSetup">
+        <div class="mpSecTitle">TON RÔLE</div>
+        <div class="seg mpSeg" id="mplPref"><button data-v="any">Peu importe</button><button data-v="fugitive">Fuyard</button><button data-v="cop">Flic</button><button data-v="spectate">Spectateur</button></div>
+        <div class="mpSecTitle small">TA VOITURE SI TU ES FLIC</div>
+        <div class="mpCars" id="mplCars"></div>
+        <div class="mpSecTitle">PARTIE <span id="mplAdminTag" class="mpBadge hidden">ADMIN</span></div>
+        <div id="mplPresets" class="mpPresets"></div>
+        <div id="mplSettings" class="mpSettings"></div>
+        <div id="mplSummary" class="mpSummary"></div>
+        <button id="mplStart" class="big hidden">LANCER LA MANCHE</button>
+        <div id="mplWait" class="mpMuted">En attente de l'hôte pour lancer la manche…</div>
+      </section>
+    </div>
+  </div>
+
+  <div id="mpResults" class="screen hidden">
+    <div class="panel mpResultsPanel">
+      <div class="mpKicker">FIN DE LA MANCHE</div>
+      <h2 id="mprTitle"></h2>
+      <div id="mprText" class="mpMuted"></div>
+      <table id="mprTable" class="mpTable"></table>
+      <div id="mprTop" class="mpTopScore"></div>
+      <div id="mprBack" class="mpMuted"></div>
+    </div>
+  </div>
+
+  <div id="mpChat" class="hidden">
+    <div id="mpChatLog"></div>
+    <input id="mpChatInput" maxlength="160" autocomplete="off" spellcheck="false" placeholder="Écris ton message… (Entrée pour envoyer, Échap pour fermer)" />
+    <div id="mpChatHint"><kbd>T</kbd> écrire · <kbd>K</kbd> masquer le chat · <kbd>L</kbd> joueurs</div>
+  </div>
+  <div id="mpPanel" class="hidden"><div class="mpSecTitle small">JOUEURS <span class="mpMuted">(L)</span></div><ol id="mpPanelList" class="mpPlayerList compact"></ol></div>
+  <div id="mpBar" class="hidden"></div>
+  <div id="mpCenter" class="hidden"><div id="mpCenterBig"></div><div id="mpCenterSub"></div></div>
+  <div id="mpSpikes" class="hidden"></div>
+  <div id="mpToasts"></div>
+
+  <div id="mpEsc" class="screen hidden">
+    <div class="panel small">
+      <h2>MENU</h2>
+      <button id="mpeResume" class="big">REPRENDRE</button>
+      <button id="mpeOptions">OPTIONS</button>
+      <button id="mpeControls">COMMANDES</button>
+      <button id="mpeStop" class="hidden">ARRÊTER LA MANCHE (ADMIN)</button>
+      <button id="mpeQuit">QUITTER LE SERVEUR</button>
+      <p class="tips">La partie continue pendant que ce menu est ouvert.</p>
+    </div>
+  </div>
+
+  <div id="mpGone" class="screen hidden">
+    <div class="panel small">
+      <h2>DÉCONNECTÉ</h2>
+      <p id="mpgWhy" class="mpMuted"></p>
+      <button id="mpgRetry" class="big">SE RECONNECTER</button>
+      <button id="mpgSite">RETOUR AU SITE</button>
+    </div>
+  </div>
+
+  <!-- Multijoueur depuis le site : serveurs favoris -->
+  <div id="mpBrowser" class="screen hidden">
+    <div class="panel mpBrowserPanel">
+      <h2>MULTIJOUEUR</h2>
+      <p class="mpMuted">Les serveurs sont hébergés par les joueurs (comme Minecraft). Entre l'adresse que l'hôte t'a donnée.</p>
+      <div id="mpbList" class="mpServerList"></div>
+      <div class="mpAddRow">
+        <input id="mpbAddr" placeholder="Adresse (ex. 82.64.12.34:7777)" maxlength="80" spellcheck="false" />
+        <input id="mpbName" placeholder="Nom (facultatif)" maxlength="30" />
+        <button id="mpbAdd">AJOUTER</button>
+        <button id="mpbJoin" class="big">REJOINDRE</button>
+      </div>
+      <div id="mpbStatus" class="mpStatus"></div>
+      <div id="mpbWho" class="mpMuted"></div>
+      <p class="tips">Tu veux héberger ? Télécharge le serveur (Windows, Mac, Linux) : <a id="mpbHost" href="https://github.com/axizof/encavale-server/releases" target="_blank" rel="noopener">github.com/axizof/encavale-server</a></p>
+      <button id="mpbClose">RETOUR</button>
+    </div>
+  </div>
+
+  <!-- Chargement -->
+  <div id="loading" class="screen">
+    <div class="loadInner">
+      <div class="logoMain small">CAVALE</div>
+      <div class="loadBar"><div id="loadFill"></div></div>
+      <div id="loadText">Chargement…</div>
+    </div>
+  </div>
+
+</body>
+</html>

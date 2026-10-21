@@ -1,0 +1,19 @@
+{
+  "name": "encavale-server",
+  "version": "1.0.0",
+  "description": "Serveur multijoueur du jeu En Cavale (à héberger soi-même, comme un serveur Minecraft)",
+  "type": "module",
+  "main": "src/main.js",
+  "bin": { "encavale-server": "src/main.js" },
+  "scripts": {
+    "start": "node src/main.js",
+    "embed": "node scripts/embed-public.js",
+    "build": "node scripts/embed-public.js && node scripts/build.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=20.10" },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "license": "UNLICENSED"
+}
