@@ -1,8 +1,13 @@
-// Panneau admin web : http://IP:port/admin (mot de passe « panelPassword » de config.json).
-// Statistiques en direct et historiques (processeur, mémoire, réseau, voitures), joueurs, journal,
-// expulsion / bannissement / annonce. Session par cookie HttpOnly (SameSite=Strict), essais limités.
+// Panneau admin web : http://localhost:port/admin (mot de passe « panelPassword » de config.json).
+// C'est le poste de commande de l'hôte (avec le terminal) : réglages de la partie, lancement des
+// manches, demandes d'entrée, joueurs (rôle, chat, expulsion, bannissement), statistiques et journal.
+// Par défaut, il ne répond qu'au PC du serveur (panelRemote: true pour l'ouvrir au réseau).
+// Session par cookie HttpOnly (SameSite=Strict), essais de mot de passe limités.
 import crypto from 'node:crypto';
 import { log } from './log.js';
+import { PRESETS } from './protocol.js';
+
+const LOCAL = new Set(['127.0.0.1', '::1', 'localhost']);
 
 const COOKIE = 'cv_panel';
 const SESSION_TTL = 12 * 3600 * 1000;
@@ -36,6 +41,11 @@ export function makePanel(srv, metrics, opts) {
 
   return async function handle(req, res, url) {
     if (!url.pathname.startsWith('/admin')) return false;
+    if (!srv.cfg.panelRemote && !LOCAL.has(ipOf(req))) {
+      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Panneau admin accessible seulement depuis le PC du serveur (http://localhost:port/admin).\nPour l\'ouvrir au réseau : "panelRemote": true dans config.json.');
+      return true;
+    }
     if (url.pathname === '/admin' || url.pathname === '/admin/') {
       res.writeHead(200, {
         'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff',
@@ -94,26 +104,19 @@ export function makePanel(srv, metrics, opts) {
       }
       case '/admin/api/players':
         json(res, 200, [...srv.players.values()].map((p) => ({
-          id: p.id, name: p.name, discord: !!p.discord, admin: p.admin, role: p.inRound ? p.role : 'salon', alive: p.inRound ? p.alive : null,
+          id: p.id, name: p.name, discord: !!p.discord, role: p.inRound ? p.role : 'salon', alive: p.inRound ? p.alive : null, pref: p.pref,
           ping: Math.round(p.ping || 0), ip: p.ip, score: Math.floor(p.score || 0), muted: p.smuted,
         })));
+        return true;
+      case '/admin/api/game':
+        json(res, 200, { phase: srv.phase, settings: srv.settings, presets: PRESETS, pending: srv.pendingList(), sim: !!srv.sim, players: srv.players.size });
         return true;
       case '/admin/api/log': json(res, 200, log.recent().slice(-150)); return true;
       case '/admin/api/action': {
         if (!post) break;
         const b = await readBody(req);
-        const p = typeof b.id === 'number' ? srv.players.get(b.id) : null;
-        const why = typeof b.why === 'string' ? b.why.slice(0, 100) : '';
-        switch (b.a) {
-          case 'kick': if (p) srv.kick(p, why, 'le panneau admin'); break;
-          case 'ban': if (p) srv.ban(p, why, 'le panneau admin'); break;
-          case 'mute': if (p) { p.smuted = !p.smuted; srv.lobbyDirty = true; } break;
-          case 'say': if (typeof b.text === 'string' && b.text.trim()) { srv.broadcast({ t: 'chat', sys: true, host: true, x: b.text.trim().slice(0, 160) }); log.chat('hôte (panneau)', b.text.trim().slice(0, 160)); } break;
-          case 'start': { const e = srv.startRound('le panneau admin'); if (e) return json(res, 400, { error: e }), true; break; }
-          case 'stop': srv.endRound('none', 'Manche arrêtée par l\'hôte'); break;
-          default: json(res, 400, { error: 'action inconnue' }); return true;
-        }
-        json(res, 200, { ok: true });
+        const err = srv.hostAction(String(b.a || ''), b, 'l\'hôte');
+        if (err) json(res, 400, { error: err }); else json(res, 200, { ok: true });
         return true;
       }
     }
@@ -144,6 +147,9 @@ canvas { width:100%; height:110px; display:block; margin-top:8px }
 #login { max-width:360px; margin:12vh auto; } #login input { width:100%; margin:10px 0 }
 .muted { color:var(--muted) } .err { color:#ff8a8a; min-height:20px }
 .lg { display:flex; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:6px } .lg i { display:inline-block; width:10px; height:3px; margin-right:5px; vertical-align:middle; border-radius:2px }
+.sets { display:grid; grid-template-columns:auto 1fr; gap:6px 14px; align-items:center; margin-top:12px; font-size:14px } .sets > div:nth-child(odd) { color:var(--muted); font-size:12px; letter-spacing:1px; text-transform:uppercase }
+button.go { background:#1f7a46; border-color:#2ea866 } button.sm { padding:4px 9px; font-size:13px } select { background:#0e1118; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:4px 6px; font:inherit; font-size:13px }
+#presets button small { display:block; color:var(--muted); font-size:12px } #presets button { text-align:left }
 .kv { display:grid; grid-template-columns:auto 1fr; gap:3px 14px; font-size:14px } .kv div:nth-child(odd) { color:var(--muted) }
 </style></head><body>
 <div id="login" class="card" hidden>
@@ -163,8 +169,13 @@ canvas { width:100%; height:110px; display:block; margin-top:8px }
   <div class="card"><h2>Réseau</h2><div class="big" id="net">–</div><canvas id="c-net"></canvas><div class="lg"><span><i style="background:#3ee58a"></i>envoyé</span><span><i style="background:#3d7bff"></i>reçu</span></div></div>
   <div class="card"><h2>Joueurs et voitures</h2><div class="big" id="cars">–</div><canvas id="c-cars"></canvas><div class="lg"><span><i style="background:#b0b4b8"></i>voitures civiles</span><span><i style="background:#ff2d3a"></i>police IA</span></div></div>
   <div class="card"><h2>Serveur</h2><div class="kv" id="info"></div></div>
+  <div class="card wide"><h2>Partie <span id="phase" class="tag"></span></h2>
+    <div id="presets" class="row"></div>
+    <div id="sets" class="sets"></div>
+    <div class="row" style="margin-top:12px"><button id="start" class="go">Lancer la manche</button><button id="stop" class="red">Arrêter la manche</button><span id="gerr" class="err"></span></div></div>
+  <div class="card wide" id="pendCard" hidden><h2>Demandes d'entrée</h2><div id="pend"></div></div>
   <div class="card wide"><h2>Joueurs</h2><table id="pl"></table>
-    <div class="row" style="margin-top:10px"><input id="say" placeholder="Annonce dans le chat" maxlength="160" style="flex:1"><button id="sayb">Envoyer</button><button id="start">Lancer la manche</button><button id="stop" class="red">Arrêter la manche</button></div></div>
+    <div class="row" style="margin-top:10px"><input id="say" placeholder="Annonce dans le chat" maxlength="160" style="flex:1"><button id="sayb">Envoyer</button></div></div>
   <div class="card wide"><h2>Journal</h2><div id="log"></div></div>
 </main></div>
 <script>
@@ -183,8 +194,54 @@ $('go').onclick = login; $('pw').onkeydown = (e) => { if (e.key === 'Enter') log
 $('out').onclick = async () => { await api('logout', {}).catch(() => {}); show(false); };
 document.querySelectorAll('[data-r]').forEach((b) => b.onclick = () => { range = b.dataset.r; document.querySelectorAll('[data-r]').forEach((x) => x.classList.toggle('on', x === b)); refresh(); });
 $('sayb').onclick = async () => { const t = $('say').value.trim(); if (!t) return; await api('action', { a: 'say', text: t }).catch(alert); $('say').value = ''; };
-$('start').onclick = () => api('action', { a: 'start' }).catch((e) => alert(e.message));
-$('stop').onclick = () => { if (confirm('Arrêter la manche en cours ?')) api('action', { a: 'stop' }).catch((e) => alert(e.message)); };
+const act = (o) => api('action', o).then(() => { $('gerr').textContent = ''; refreshGame(); refresh(); }).catch((e) => { $('gerr').textContent = e.message; });
+$('start').onclick = () => act({ a: 'start' });
+$('stop').onclick = () => { if (confirm('Arrêter la manche en cours ?')) act({ a: 'stop' }); };
+const SETS = [
+  ['bots', 'Police IA', [['off', 'Aucune'], ['normal', 'Normale'], ['renforce', 'Renforcée']]],
+  ['policeSim', 'Police IA calculée par', [['client', 'le joueur poursuivi (réactive)'], ['server', 'le serveur (anti-triche)']], 'sim'],
+  ['traffic', 'Circulation', [['off', 'Aucune'], ['light', 'Légère'], ['normal', 'Normale'], ['dense', 'Dense']], 'sim'],
+  ['spikes', 'Herses (flics)', [['off', 'Aucune'], ['rare', 'Rares'], ['normal', 'Normales'], ['beaucoup', 'Beaucoup']]],
+  ['deadToCop', 'Fuyard éliminé', [[false, 'devient spectateur'], [true, 'peut rejoindre la police']]],
+  ['timeLimit', 'Durée', [[0, 'Illimitée'], [300, '5 min'], [600, '10 min'], [900, '15 min'], [1200, '20 min']]],
+  ['weather', 'Météo', [['dynamic', 'Variable'], ['clear', 'Beau'], ['rain', 'Pluie'], ['fog', 'Brouillard'], ['storm', 'Orage']]],
+  ['tod', 'Heure', [['day', 'Jour'], ['sunset', 'Coucher'], ['night', 'Nuit']]],
+];
+let gameKey = '';
+async function refreshGame() {
+  const g = await api('game');
+  const key = JSON.stringify([g.phase, g.settings, g.pending]);
+  if (key === gameKey) return;
+  gameKey = key;
+  const S = g.settings, lock = g.phase === 'playing' || g.phase === 'countdown';
+  $('phase').textContent = { lobby: 'au salon', countdown: 'départ', playing: 'manche en cours', results: 'résultats' }[g.phase];
+  $('start').disabled = lock; $('stop').disabled = !lock;
+  const pr = $('presets'); pr.innerHTML = '';
+  for (const [k, v] of Object.entries(g.presets)) {
+    const b = document.createElement('button'); b.className = S.preset === k ? 'on' : ''; b.disabled = lock;
+    b.append(v.label); const sm = document.createElement('small'); sm.textContent = v.desc; b.append(sm);
+    b.onclick = () => act({ a: 'set', s: { preset: k } }); pr.append(b);
+  }
+  const box = $('sets'); box.innerHTML = '';
+  const row = (label, opts, cur, onSel) => {
+    const l = document.createElement('div'); l.textContent = label;
+    const r = document.createElement('div'); r.className = 'row';
+    for (const [v, t] of opts) { const b = document.createElement('button'); b.className = 'sm' + (cur === v ? ' on' : ''); b.textContent = t; b.disabled = lock; b.onclick = () => onSel(v); r.append(b); }
+    box.append(l, r);
+  };
+  if (S.preset === 'perso') row('Flics joueurs', [0, 1, 2, 3, 4, 5, 6, 8, 10].map((n) => [n, String(n)]), S.cops, (v) => act({ a: 'set', s: { cops: v } }));
+  for (const [k, label, opts, need] of SETS) { if (need === 'sim' && !g.sim) continue; row(label, opts, S[k], (v) => act({ a: 'set', s: { [k]: v } })); }
+  // demandes d'entrée
+  $('pendCard').hidden = !g.pending.length;
+  const pd = $('pend'); pd.innerHTML = '';
+  for (const r of g.pending) {
+    const d = document.createElement('div'); d.className = 'row'; d.style.marginBottom = '6px';
+    const t = document.createElement('span'); t.textContent = r.name + (r.discord ? ' (Discord)' : '') + ' — ' + r.ip; t.style.flex = '1';
+    const y = document.createElement('button'); y.className = 'go sm'; y.textContent = 'Accepter'; y.onclick = () => act({ a: 'approve', req: r.req, ok: true });
+    const n = document.createElement('button'); n.className = 'red sm'; n.textContent = 'Refuser'; n.onclick = () => act({ a: 'approve', req: r.req, ok: false });
+    d.append(t, y, n); pd.append(d);
+  }
+}
 const fmtDur = (s) => { const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? h + ' h ' + m + ' min' : m + ' min ' + (s % 60) + ' s'; };
 function chart(id, series, opts = {}) {
   const c = $(id), dpr = devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
@@ -224,17 +281,21 @@ async function refresh() {
     for (const [k, v] of [['Phase', { lobby: 'salon', countdown: 'départ', playing: 'manche en cours', results: 'résultats' }[S.phase]], ['Joueurs', S.players + ' / ' + S.max], ['Préréglage', S.preset], ['Police IA', S.policeSim === 'server' ? 'calculée par le serveur' : 'calculée par les joueurs'], ['Circulation', S.traffic], ['Simulation', sim], ['Mot de passe', S.password ? 'oui' : 'non'], ['Accord de l’hôte', S.approval ? 'oui' + (S.pending ? ' (' + S.pending + ' en attente)' : '') : 'non']]) {
       const a1 = document.createElement('div'); a1.textContent = k; const b1 = document.createElement('div'); b1.textContent = v; $('info').append(a1, b1);
     }
-    const t = $('pl'); t.innerHTML = '<tr><th>Joueur</th><th>Rôle</th><th>Score</th><th>Ping</th><th>IP</th><th></th></tr>';
+    refreshGame().catch(() => {});
+    const t = $('pl'); t.innerHTML = '<tr><th>Joueur</th><th>Rôle</th><th>Souhait</th><th>Score</th><th>Ping</th><th>IP</th><th></th></tr>';
     for (const p of pl) {
       const tr = document.createElement('tr');
       const td = (x) => { const c = document.createElement('td'); if (x instanceof Node) c.append(x); else c.textContent = x; return c; };
       const nm = document.createElement('span'); nm.textContent = p.name;
-      if (p.admin) { const s = document.createElement('span'); s.className = 'tag r'; s.textContent = 'admin'; nm.append(s); }
       if (p.discord) { const s = document.createElement('span'); s.className = 'tag b'; s.textContent = 'Discord'; nm.append(s); }
       const acts = document.createElement('div'); acts.className = 'row';
-      const btn = (txt, a, cls) => { const b = document.createElement('button'); b.textContent = txt; if (cls) b.className = cls; b.onclick = () => { if (a !== 'mute' && !confirm(txt + ' ' + p.name + ' ?')) return; api('action', { a, id: p.id }).then(refresh).catch((e) => alert(e.message)); }; acts.append(b); };
+      const btn = (txt, a, cls) => { const b = document.createElement('button'); b.textContent = txt; b.className = 'sm ' + (cls || ''); b.onclick = () => { if (a !== 'mute' && !confirm(txt + ' ' + p.name + ' ?')) return; act({ a, id: p.id }); }; acts.append(b); };
       btn(p.muted ? 'Autoriser le chat' : 'Couper le chat', 'mute'); btn('Expulser', 'kick', 'red'); btn('Bannir', 'ban', 'red');
-      tr.append(td(nm), td(p.role + (p.alive === false ? ' (hors jeu)' : '')), td(String(p.score)), td(p.ping + ' ms'), td(p.ip), td(acts));
+      const sel = document.createElement('select');
+      for (const [v, l] of [['any', 'peu importe'], ['fugitive', 'fuyard'], ['cop', 'flic'], ['spectate', 'spectateur']]) { const o = document.createElement('option'); o.value = v; o.textContent = l; o.selected = p.pref === v; sel.append(o); }
+      sel.onchange = () => act({ a: 'force', id: p.id, pref: sel.value });
+      const roles = { fugitive: 'fuyard', cop: 'flic', spectator: 'spectateur', salon: 'au salon' };
+      tr.append(td(nm), td((roles[p.role] || p.role) + (p.alive === false ? ' (hors jeu)' : '')), td(sel), td(String(p.score)), td(p.ping + ' ms'), td(p.ip), td(acts));
       t.append(tr);
     }
     const L = $('log'), atBottom = L.scrollTop + L.clientHeight >= L.scrollHeight - 20;

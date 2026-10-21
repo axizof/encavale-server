@@ -6,10 +6,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import WebSocket from 'ws';
+import { PROTOCOL } from '../src/protocol.js';
 
 const PORT = 17000 + Math.floor(Math.random() * 1000);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'encavale-'));
-fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ name: 'Test', port: PORT, password: 'secret', joinApproval: true, adminCode: 'code123', maxPlayers: 4, panelPassword: 'panneau-test' }));
+fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ name: 'Test', port: PORT, password: 'secret', joinApproval: true, maxPlayers: 4, panelPassword: 'panneau-test' }));
 let proc;
 
 test.before(async () => {
@@ -40,7 +41,7 @@ function connect(hello) {
     waiters.push({ pred, res });
     setTimeout(() => rej(new Error('message attendu non reçu')), ms);
   });
-  ws.on('open', () => ws.send(JSON.stringify({ t: 'hello', v: 1, cid: cid(), ...hello })));
+  ws.on('open', () => ws.send(JSON.stringify({ t: 'hello', v: PROTOCOL, cid: cid(), ...hello })));
   return { ws, msgs, wait, closed, send: (o) => ws.send(JSON.stringify(o)) };
 }
 
@@ -57,30 +58,52 @@ test('mauvais mot de passe : refusé', async () => {
   await c.closed;
 });
 
-test('approbation, chat, expulsion, bannissement', async () => {
-  const admin = connect({ name: 'Hote', pass: 'secret', admin: 'code123' });
-  const w = await admin.wait((m) => m.t === 'welcome');
-  assert.equal(w.admin, true); // le code admin passe l'approbation
+// le panneau (seul poste d'admin avec le terminal) : connexion puis actions
+async function panel() {
+  const U = `http://localhost:${PORT}/admin/api`;
+  const r = await fetch(`${U}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Panel': '1' }, body: JSON.stringify({ password: 'panneau-test' }) });
+  const cookie = r.headers.get('set-cookie').split(';')[0];
+  const get = async (p) => (await fetch(`${U}/${p}`, { headers: { cookie } })).json();
+  const act = async (o) => (await fetch(`${U}/action`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Panel': '1', cookie }, body: JSON.stringify(o) })).json();
+  return { get, act };
+}
+
+test('approbation par l\'hôte, chat, aucun pouvoir admin en jeu, bannissement', async () => {
+  const P = await panel();
+  const alice = connect({ name: 'Alice', pass: 'secret' });
+  await alice.wait((m) => m.t === 'pending');
+  let g = await P.get('game');
+  const ra = g.pending.find((r) => r.name === 'Alice');
+  assert.ok(ra, 'demande visible dans le panneau');
+  await P.act({ a: 'approve', req: ra.req, ok: true });
+  const wa = await alice.wait((m) => m.t === 'welcome');
   const bob = connect({ name: 'Bob', pass: 'secret' });
   await bob.wait((m) => m.t === 'pending');
-  const req = await admin.wait((m) => m.t === 'joinreq' && m.n === 'Bob');
-  admin.send({ t: 'approve', req: req.req, ok: true });
+  g = await P.get('game');
+  await P.act({ a: 'approve', req: g.pending.find((r) => r.name === 'Bob').req, ok: true });
   const wb = await bob.wait((m) => m.t === 'welcome');
   // chat nettoyé
   bob.send({ t: 'chat', x: `salut${String.fromCharCode(0x202e)} tout le monde` });
-  const ch = await admin.wait((m) => m.t === 'chat' && m.n === 'Bob');
+  const ch = await alice.wait((m) => m.t === 'chat' && m.n === 'Bob');
   assert.equal(ch.x, 'salut tout le monde');
-  // un joueur normal ne peut pas expulser
-  bob.send({ t: 'kick', id: w.id });
-  await new Promise((r) => setTimeout(r, 200));
-  assert.equal(admin.ws.readyState, WebSocket.OPEN);
-  // bannissement, puis retour impossible (même navigateur)
-  admin.send({ t: 'ban', id: wb.id, why: 'test' });
+  // en jeu, personne ne peut expulser, régler la partie ou devenir admin
+  bob.send({ t: 'kick', id: wa.id });
+  bob.send({ t: 'set', s: { preset: 'chasse' } });
+  bob.send({ t: 'chat', x: '/admin 1234' });
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(alice.ws.readyState, WebSocket.OPEN);
+  assert.notEqual((await P.get('game')).settings.preset, 'chasse');
+  // réglage par le panneau, puis bannissement : retour impossible
+  await P.act({ a: 'set', s: { preset: 'chasse', deadToCop: true } });
+  const st = (await P.get('game')).settings;
+  assert.equal(st.preset, 'chasse');
+  assert.equal(st.deadToCop, true);
+  await P.act({ a: 'ban', id: wb.id, why: 'test' });
   const k = await bob.wait((m) => m.t === 'kick');
   assert.match(k.why, /banni/);
   const bans = JSON.parse(fs.readFileSync(path.join(dir, 'bans.json'), 'utf8')).bans;
   assert.equal(bans.length, 1);
-  admin.ws.close();
+  alice.ws.close();
 });
 
 test('panneau admin : mot de passe, en-tête anti-CSRF, statistiques', async () => {

@@ -4,24 +4,26 @@ import { PRESETS } from './protocol.js';
 import { log } from './log.js';
 
 const HELP = `
-Commandes :
+Commandes (l'administration se fait ici ou dans le panneau web : aucun pouvoir admin en jeu) :
   joueurs                  liste des joueurs connectés
   lancer / stop            lancer / arrêter une manche
   preset <nom>             ${Object.keys(PRESETS).join(', ')}
   set <réglage> <valeur>   bots (off|normal|renforce), herses (off|rare|normal|beaucoup),
                            flics (nombre, preset perso), temps (minutes, 0 = illimité),
-                           meteo (dynamic|clear|rain|fog|storm), heure (day|sunset|night)
+                           meteo (dynamic|clear|rain|fog|storm), heure (day|sunset|night),
+                           circulation (off|light|normal|dense), police (client|server),
+                           renfort (on|off : un fuyard éliminé peut rejoindre la police)
   kick <joueur> [raison]   expulser          ban <joueur> [raison]   bannir
   bans / unban <n°|nom>    liste / retirer un bannissement
   muet <joueur>            empêcher / autoriser d'écrire dans le chat
-  admin <joueur>           donner les droits admin en jeu
+  role <joueur> <rôle>     forcer : any, fugitive, cop, spectate
   dire <message>           message dans le chat
   accepter <n°> / refuser <n°>   demandes d'entrée (si l'approbation est activée)
   approbation on|off       demander l'accord de l'hôte pour chaque arrivée
-  motdepasse <mdp|off>     changer le mot de passe
+  motdepasse <mdp|off>     changer le mot de passe du serveur
   stats                    processeur, mémoire, réseau, voitures (moyennes 1 min et 1 h)
   panneau [mdp]            afficher / changer le mot de passe du panneau web (/admin)
-  infos                    adresse, code admin, réglages
+  infos                    adresse et réglages
   quitter                  arrêter le serveur
 `;
 
@@ -52,31 +54,31 @@ function run(srv, line, extra) {
     case 'joueurs': case 'list': {
       const ps = [...srv.players.values()];
       if (!ps.length) log.info('Personne pour l\'instant.');
-      for (const p of ps) log.out(`  ${String(p.id).padStart(3)}  ${p.name.padEnd(16)} ${p.discord ? 'Discord ' : 'invité  '} ${p.admin ? 'admin ' : '      '} ${p.inRound ? `${p.role}${p.alive ? '' : ' (hors jeu)'}` : 'salon'}  ${Math.round(p.ping)} ms  ${p.ip}`);
+      for (const p of ps) log.out(`  ${String(p.id).padStart(3)}  ${p.name.padEnd(16)} ${p.discord ? 'Discord ' : 'invité  '} ${p.inRound ? `${p.role}${p.alive ? '' : ' (hors jeu)'}` : 'salon'}  ${Math.round(p.ping)} ms  ${p.ip}`);
       break;
     }
-    case 'lancer': case 'start': { const e = srv.startRound('la console'); if (e) log.warn(e); break; }
-    case 'stop': srv.endRound('none', 'Manche arrêtée par l\'hôte'); break;
+    case 'lancer': case 'start': { const e = srv.hostAction('start', {}, 'l\'hôte'); if (e) log.warn(e); break; }
+    case 'stop': { const e = srv.hostAction('stop', {}, 'l\'hôte'); if (e) log.warn(e); break; }
     case 'preset':
       if (!PRESETS[a1]) { log.warn(`Préréglages : ${Object.keys(PRESETS).join(', ')}`); break; }
       srv.applySettings({ preset: a1 }, 'la console'); break;
     case 'set': {
-      const key = { bots: 'bots', herses: 'spikes', flics: 'cops', temps: 'timeLimit', meteo: 'weather', heure: 'tod' }[a1];
-      if (!key) { log.warn('Réglages : bots, herses, flics, temps, meteo, heure'); break; }
+      const key = { bots: 'bots', herses: 'spikes', flics: 'cops', temps: 'timeLimit', meteo: 'weather', heure: 'tod', circulation: 'traffic', police: 'policeSim', renfort: 'deadToCop' }[a1];
+      if (!key) { log.warn('Réglages : bots, herses, flics, temps, meteo, heure, circulation, police, renfort'); break; }
       let v = rest[0];
       if (key === 'timeLimit') v = Number(v) * 60;
       if (key === 'cops') { srv.applySettings({ preset: 'perso' }); v = Number(v); }
-      srv.applySettings({ [key]: v }, 'la console');
-      log.info(JSON.stringify(srv.settings));
+      const e = srv.applySettings({ [key]: v }, 'la console');
+      if (e) log.warn(e); else log.info(JSON.stringify(srv.settings));
       break;
     }
-    case 'kick': { const p = who(); if (p) srv.kick(p, rest.join(' ')); break; }
-    case 'ban': { const p = who(); if (p) srv.ban(p, rest.join(' ')); break; }
+    case 'kick': { const p = who(); if (p) srv.hostAction('kick', { id: p.id, why: rest.join(' ') }); break; }
+    case 'ban': { const p = who(); if (p) srv.hostAction('ban', { id: p.id, why: rest.join(' ') }); break; }
     case 'bans': srv.bans.list.forEach((b, i) => log.out(`  ${i + 1}. ${b.name} ${b.discord ? `(Discord ${b.discord})` : ''} ${b.reason ? `— ${b.reason}` : ''} ${b.at.slice(0, 10)}`)); if (!srv.bans.list.length) log.info('Aucun banni.'); break;
     case 'unban': log.info(`${srv.bans.remove(a1)} bannissement(s) retiré(s)`); break;
-    case 'muet': case 'mute': { const p = who(); if (p) { p.smuted = !p.smuted; log.info(`${p.name} ${p.smuted ? 'muet' : 'peut écrire'}`); srv.lobbyDirty = true; } break; }
-    case 'admin': { const p = who(); if (p) { p.admin = true; srv.send(p.conn, { t: 'admin', on: true }); srv.sys('Tu es maintenant admin du serveur.', p); srv.lobbyDirty = true; log.ok(`${p.name} est admin`); } break; }
-    case 'dire': case 'say': if (restTxt) { srv.broadcast({ t: 'chat', sys: true, host: true, x: restTxt.slice(0, 160) }); log.chat('hôte', restTxt); } break;
+    case 'muet': case 'mute': { const p = who(); if (p) { srv.hostAction('mute', { id: p.id }); log.info(`${p.name} ${p.smuted ? 'muet' : 'peut écrire'}`); } break; }
+    case 'role': { const p = who(); if (p) { const e = srv.hostAction('force', { id: p.id, pref: rest[0] }); if (e) log.warn(e); } break; }
+    case 'dire': case 'say': if (restTxt) srv.hostAction('say', { text: restTxt }); break;
     case 'accepter': case 'accept': if (!srv.resolveRequest(Number(a1), true)) log.warn('Demande introuvable'); break;
     case 'refuser': case 'deny': if (!srv.resolveRequest(Number(a1), false)) log.warn('Demande introuvable'); break;
     case 'approbation':

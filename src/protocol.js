@@ -2,7 +2,7 @@
 // Messages texte : JSON { t: 'type', ...champs }. Positions des voitures : binaire compact
 // (25 octets par voiture), envoyé ~15 fois par seconde dans les deux sens.
 
-export const PROTOCOL = 1;
+export const PROTOCOL = 2; // 2 : administration retirée du jeu, changement de rôle en cours de manche
 
 // Types de voiture (octet « kind ») : 0-3 joueurs et police, 4-6 circulation civile
 export const KIND = { fugitive: 0, interceptor: 1, police: 2, suv: 3, sedan: 4, hatch: 5, van: 6 };

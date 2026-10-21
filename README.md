@@ -5,18 +5,19 @@ Le serveur multijoueur du jeu **En Cavale**, à héberger soi-même, comme un se
 - Jusqu'à **20 joueurs** : des fuyards, des flics joueurs et, si tu veux, la police IA du jeu solo en renfort.
 - Des **préréglages** pour répartir les rôles automatiquement, et un mode **personnalisé**.
 - Un **chat** avec anti-flood, et la possibilité de masquer les messages de quelqu'un.
-- Pour l'hôte : **mot de passe**, **accord de l'hôte** pour chaque arrivée, **expulsion**, **bannissement**.
+- Pour l'hôte, **depuis son terminal ou son panneau web uniquement** (aucun pouvoir admin en jeu) : **mot de passe**, **accord de l'hôte** pour chaque arrivée, **expulsion**, **bannissement**, réglages et lancement des manches.
 - Le **serveur fait foi** : la vie, les morts, les arrestations, les scores et les positions impossibles sont vérifiés côté serveur.
 - **Circulation civile partagée**, simulée par le serveur : tout le monde voit les mêmes voitures, et seulement autour des joueurs.
 - **Police IA** au choix de l'hôte : calculée par le joueur poursuivi (réactive) ou par le serveur (anti-triche).
-- **Panneau admin web** protégé par mot de passe : processeur, mémoire, réseau, voitures, avec historique, joueurs et journal.
+- **Panneau admin web** protégé par mot de passe, accessible seulement depuis le PC du serveur par défaut : réglages de la partie, manches, demandes d'entrée, joueurs, statistiques avec historique, journal.
+- **Spectateur** : ◀ ▶ ou clic sur un pseudo pour suivre qui on veut. **Option** : un fuyard éliminé peut rejoindre la police.
 
 ## Sommaire
 1. [Lancer un serveur](#1-lancer-un-serveur)
 2. [Ouvrir le serveur aux joueurs](#2-ouvrir-le-serveur-aux-joueurs)
 3. [Rejoindre](#3-rejoindre)
 4. [Configuration (config.json)](#4-configuration-configjson)
-5. [Administrer (jeu, terminal, panneau web)](#5-administrer)
+5. [Administrer (terminal et panneau web)](#5-administrer)
 6. [Les parties](#6-les-parties)
 7. [Sécurité et anti-triche](#7-sécurité-et-anti-triche)
 8. [Héberger sur un VPS Linux](#8-héberger-sur-un-vps-linux)
@@ -41,14 +42,14 @@ Décompresse-la dans un dossier à toi, puis lance l'exécutable :
 - **Mac** : ouvre un Terminal dans le dossier et tape `./encavale-server-…`. Si macOS refuse (« développeur non identifié »), tape d'abord `xattr -d com.apple.quarantine encavale-server-*`.
 - **Linux** : `./encavale-server-…`.
 
-Au premier lancement, le serveur crée **`config.json`** à côté de l'exécutable, puis affiche les adresses où le rejoindre et le **code admin** :
+Au premier lancement, le serveur crée **`config.json`** à côté de l'exécutable, puis affiche les adresses où le rejoindre et le **mot de passe du panneau admin** :
 
 ```
   EN CAVALE — serveur multijoueur v1.0.0
   Sur ce PC    : http://localhost:7777
   Réseau local : http://192.168.1.20:7777
   Internet     : http://TON-IP-PUBLIQUE:7777  (ouvre/redirige le port 7777 TCP sur ta box ou ton VPS)
-  Code admin   : 3f9c2a1b  (dans le jeu : /admin 3f9c2a1b)
+  Panneau web  : http://localhost:7777/admin  mot de passe : Xy7…  (seulement depuis ce PC)
 ```
 
 Pour choisir le port sans toucher au fichier : `./encavale-server --port 8080`.
@@ -76,10 +77,10 @@ Le serveur **sert le jeu lui-même**. Les joueurs n'ont rien à installer : la p
 | `port` | `7777` | Port TCP (la page du jeu et le WebSocket passent par le même). |
 | `password` | `""` | Mot de passe pour entrer (vide = serveur ouvert). |
 | `maxPlayers` | `12` | De 2 à 20. |
-| `adminCode` | aléatoire | Code pour devenir admin en jeu (`/admin CODE`), ou à saisir dans « Je suis l'hôte » en rejoignant. |
-| `joinApproval` | `false` | `true` : chaque arrivée doit être acceptée par un admin. Une notification apparaît en jeu et dans le terminal. |
+| `joinApproval` | `false` | `true` : chaque arrivée doit être acceptée par l'hôte (dans le terminal : `accepter n°`, ou dans le panneau web). |
 | `motd` | message de bienvenue | Message affiché à l'arrivée. |
-| `panelPassword` | aléatoire | Mot de passe du **panneau admin web** (`http://IP:port/admin`). Il s'affiche au démarrage. |
+| `panelPassword` | aléatoire | Mot de passe du **panneau admin web** (`http://localhost:port/admin`). Il s'affiche au démarrage. |
+| `panelRemote` | `false` | `false` : le panneau ne répond qu'au PC du serveur. `true` : aussi depuis le réseau (le mot de passe passe alors en clair, voir plus bas). |
 | `publicHost` | `[]` | Seulement derrière un reverse proxy : adresses publiques du serveur, pour accepter les tickets Discord. |
 | `settings` | — | Derniers réglages de partie (mis à jour par le serveur). |
 
@@ -87,25 +88,22 @@ Relance le serveur après avoir modifié le fichier. Les bannissements sont dans
 
 ## 5. Administrer
 
-**En jeu** : tape `/admin CODE` dans le chat. Tu peux alors :
-- choisir le préréglage et les réglages, puis lancer la manche ;
-- forcer le rôle d'un joueur (flic ou fuyard) ;
-- l'expulser, le bannir, ou lui interdire le chat. Passe la souris sur sa ligne dans la liste des joueurs ;
-- accepter ou refuser les arrivées (notification en haut à droite) ;
-- arrêter la manche (Échap, puis « Arrêter la manche »).
+**Aucun joueur n'a de pouvoir en jeu.** Il n'y a pas de code admin à taper dans le chat qu'un joueur pourrait récupérer. L'hôte administre son serveur depuis deux endroits seulement : **le terminal du serveur** et **le panneau web**. Dans le jeu, les joueurs voient les réglages en lecture seule et choisissent seulement leur rôle préféré et leur voiture de flic.
 
-Commandes de chat : `/aide`, `/joueurs`, `/admin CODE` ; pour les admins : `/kick nom`, `/ban nom`, `/muet nom`, `/lancer`, `/stop`.
+**Panneau admin web** : `http://localhost:port/admin`, sur le PC du serveur, protégé par le mot de passe `panelPassword` (affiché au démarrage, modifiable avec `panneau NOUVEAU-MDP`). On y trouve :
+- la **partie** : préréglage, police IA (aucune, normale, renforcée ; calculée par le joueur ou par le serveur), circulation, herses, « un fuyard éliminé peut rejoindre la police », durée, météo, heure ; boutons **Lancer la manche** et **Arrêter la manche** ;
+- les **demandes d'entrée** (si l'accord de l'hôte est activé), avec Accepter et Refuser ;
+- les **joueurs** : rôle, rôle souhaité (modifiable), score, ping, IP, et les boutons couper le chat, expulser, bannir ; une annonce dans le chat ;
+- les **statistiques** : processeur, mémoire, temps de calcul, latence, réseau, voitures, en direct et sur 5 min, 1 h ou 24 h ;
+- le **journal** du serveur.
 
-**Panneau admin web** : `http://IP:port/admin`, protégé par le mot de passe `panelPassword` (affiché au démarrage, modifiable avec `panneau NOUVEAU-MDP`). Les admins en jeu ont aussi un bouton « Panneau admin » dans le salon et dans le menu Échap. On y trouve :
-- le processeur, la mémoire, le temps de calcul, la latence et le réseau, en direct, avec un historique de 5 min, 1 h ou 24 h ;
-- le nombre de joueurs, de voitures civiles et de voitures de police IA ;
-- la liste des joueurs (rôle, score, ping, IP), avec les boutons couper le chat, expulser et bannir ;
-- une annonce dans le chat, lancer ou arrêter la manche ;
-- le journal du serveur.
+La session dure 12 h (cookie HttpOnly). Après 5 mauvais mots de passe, l'IP est bloquée 5 minutes. Par défaut le panneau ne répond **qu'au PC du serveur** : depuis une autre machine, il refuse l'accès.
 
-La session dure 12 h (cookie HttpOnly). Après 5 mauvais mots de passe, l'IP est bloquée 5 minutes.
+Pour administrer un serveur hébergé sur un VPS :
+- **le plus sûr** : un tunnel SSH, `ssh -L 7777:localhost:7777 ton-vps`, puis `http://localhost:7777/admin` sur ton PC ;
+- **sinon** : `"panelRemote": true` dans `config.json`. ⚠️ Le serveur est en `http`, le mot de passe passe alors **en clair** sur le réseau.
 
-⚠️ Le serveur fonctionne en `http` simple, comme le jeu : le mot de passe passe **en clair** sur le réseau. Utilise le panneau depuis le PC du serveur (`http://localhost:port/admin`) ou sur un réseau de confiance. Sur un VPS, le plus sûr est un tunnel SSH : `ssh -L 7777:localhost:7777 ton-vps`, puis ouvre `http://localhost:7777/admin`.
+Une manche se termine quand tous les fuyards sont tombés, à la fin du temps, ou quand l'hôte l'arrête. Le classement de la manche s'affiche, puis tout le monde **revient au salon et y reste** jusqu'à ce que l'hôte relance.
 
 **Dans le terminal du serveur** (tape `aide`) :
 
@@ -115,9 +113,11 @@ lancer / stop            lancer / arrêter une manche
 preset <nom>             classique, renfort, equipes, chasse, perso
 set bots normal          bots (off|normal|renforce), herses (off|rare|normal|beaucoup),
                          flics (nombre), temps (minutes, 0 = illimité),
-                         meteo (dynamic|clear|rain|fog|storm), heure (day|sunset|night)
+                         meteo (dynamic|clear|rain|fog|storm), heure (day|sunset|night),
+                         circulation (off|light|normal|dense), police (client|server),
+                         renfort (on|off : un fuyard éliminé peut rejoindre la police)
 kick <joueur> [raison]   ban <joueur> [raison]   bans   unban <n°|nom>
-muet <joueur>            admin <joueur>          dire <message>
+muet <joueur>            role <joueur> <any|fugitive|cop|spectate>   dire <message>
 accepter <n°> / refuser <n°>     approbation on|off     motdepasse <mdp|off>
 stats                    processeur, mémoire, réseau, voitures (moyennes 1 min / 1 h)
 panneau [mdp]            afficher / changer le mot de passe du panneau web
@@ -142,13 +142,15 @@ Chaque joueur indique sa préférence au salon (peu importe, fuyard, flic ou spe
 - **Police IA, deux modes** :
   - *Réactive* (par défaut) : le PC du fuyard poursuivi fait rouler sa police et l'envoie aux autres. C'est parfaitement fluide pour lui. Si sa connexion est mauvaise, les autres le voient saccader, lui et sa police, mais ensemble et de façon cohérente.
   - *Serveur* : le serveur fait rouler la police, gère les étoiles, les barrages et les herses. Impossible à tricher, mais avec une mauvaise connexion le fuyard voit ses poursuivants avec un léger décalage.
-- **Fuyards** : la vraie partie solo (braquages, livraisons, défis), en survivant. S'ils sont détruits ou arrêtés, ils passent **spectateurs** jusqu'à la manche suivante. Avec la police IA, chaque fuyard a ses propres poursuivants : la police se divise. Plus il y a de fuyards, plus elle est nombreuse et agressive.
+- **Fuyards** : la vraie partie solo (braquages, livraisons, défis), en survivant. S'ils sont détruits ou arrêtés, ils passent **spectateurs** jusqu'à la manche suivante : barre ◀ pseudo ▶ (ou ← →) et liste des joueurs cliquable pour suivre qui on veut. Si l'hôte active l'option « **un fuyard éliminé peut rejoindre la police** », un bouton **REJOINDRE LA POLICE** le remet en jeu en voiture de flic 8 s plus tard. Avec la police IA, chaque fuyard a ses propres poursuivants : la police se divise. Plus il y a de fuyards, plus elle est nombreuse et agressive.
 - **Flics joueurs** : il faut détruire les fuyards (les chocs comptent) ou les **arrêter** (fuyard immobilisé, flic collé à lui pendant 3 s). Un flic détruit repart **40 s** plus tard, assez loin des fuyards. La radio donne la position de tous les fuyards toutes les 8 s.
 - **Voitures de flic** : moins il y a de flics par rapport aux fuyards, plus elles sont fortes. Peu de flics : Intercepteur, SUV ou Berline. Autant de flics que de fuyards : SUV ou Berline. Beaucoup de flics : Berline seulement.
 - **Herses** (touche **F**) : en nombre limité, elles se rechargent avec le temps, et plus lentement quand il y a beaucoup de flics. Deux au maximum posées en même temps par flic, pendant 30 s.
 - **Fin de manche** : quand tous les fuyards sont tombés (victoire des flics) ou à la fin du temps (les survivants gagnent, avec un bonus). Le classement de la manche s'affiche, puis tout le monde revient au salon. Le **meilleur score du serveur** est gardé tant qu'il tourne.
 
 Touches du multijoueur : **T** ou **Entrée** pour écrire, **K** pour masquer le chat, **L** pour la liste des joueurs, **F** pour poser une herse (flic), **H** pour la sirène (flic), **← →** pour changer de joueur suivi (spectateur), **Échap** pour le menu (la partie continue).
+
+Commandes de chat pour tous : `/joueurs`.
 
 ### Ce que ça consomme
 

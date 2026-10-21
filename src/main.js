@@ -61,8 +61,8 @@ function banner() {
   for (const ip of ips) log.plain(`  Réseau local : ${log.cyan(`http://${ip}:${port}`)}`);
   log.plain(`  Internet     : http://${log.yellow('TON-IP-PUBLIQUE')}:${port}  (ouvre/redirige le port ${port} TCP sur ta box ou ton VPS)`);
   log.plain(`  Mot de passe : ${cfg.password ? 'oui' : 'non'} · approbation des arrivées : ${cfg.joinApproval ? 'oui' : 'non'} · ${cfg.maxPlayers} joueurs max`);
-  log.plain(`  Code admin   : ${log.yellow(cfg.adminCode)}  (dans le jeu : /admin ${cfg.adminCode})`);
-  log.plain(`  Panneau web  : ${log.cyan(`http://localhost:${port}/admin`)}  mot de passe : ${log.yellow(cfg.panelPassword)}`);
+  log.plain(`  Panneau web  : ${log.cyan(`http://localhost:${port}/admin`)}  mot de passe : ${log.yellow(cfg.panelPassword)}  ${log.dim(cfg.panelRemote ? '(accessible aussi depuis le réseau)' : '(seulement depuis ce PC)')}`);
+  log.plain(`  Administration : ce terminal (tape « aide ») ou le panneau web — aucun pouvoir admin en jeu.`);
   log.plain(`  Jeu servi    : ${files.has('/index.html') ? source : log.yellow('ABSENT (dossier public/ vide)')}`);
   log.plain(`  Simulation   : ${simInfo}`);
   log.plain(log.dim(`  Config       : ${cfgFile}`));

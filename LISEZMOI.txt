@@ -3,7 +3,7 @@ EN CAVALE — serveur multijoueur
 
 1. Lance l'exécutable (Windows : double-clic ; Mac / Linux : ./encavale-server-… dans un terminal).
    Au premier lancement, un fichier config.json est créé à côté : nom, port, mot de passe,
-   nombre de joueurs, code admin… Modifie-le puis relance le serveur.
+   nombre de joueurs, mot de passe du panneau… Modifie-le puis relance le serveur.
 
 2. Les joueurs te rejoignent avec l'adresse affichée :
      - sur ton PC         : http://localhost:7777
@@ -11,10 +11,10 @@ EN CAVALE — serveur multijoueur
      - depuis Internet    : http://TON-IP-PUBLIQUE:7777 (il faut ouvrir le port 7777 TCP sur ta box)
    ou depuis le site du jeu : bouton MULTIJOUEUR, puis l'adresse.
 
-3. Dans le jeu, tape /admin TON-CODE dans le chat pour lancer les manches, régler la partie,
-   expulser ou bannir. Dans ce terminal, tape « aide » pour toutes les commandes.
-   Panneau admin web (statistiques, joueurs) : http://localhost:7777/admin, avec le mot de passe
-   « panelPassword » affiché au démarrage.
+3. Tu administres le serveur depuis ce terminal (tape « aide ») ou depuis le panneau web, sur
+   ce PC : http://localhost:7777/admin, avec le mot de passe « panelPassword » affiché au
+   démarrage. Réglages, lancement des manches, arrivées, expulsions, bannissements, stats.
+   Aucun joueur n'a de pouvoir admin dans le jeu.
 
 Mac : si macOS bloque le fichier (« développeur non identifié »), clic droit > Ouvrir,
 ou dans un terminal : xattr -d com.apple.quarantine encavale-server-*

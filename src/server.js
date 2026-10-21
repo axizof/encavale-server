@@ -1,4 +1,6 @@
-// Le serveur de jeu : salon, manches, autorité sur la vie / les morts / les scores, chat, admin.
+// Le serveur de jeu : salon, manches, autorité sur la vie / les morts / les scores, chat.
+// L'administration (réglages, manches, expulsions…) se fait seulement depuis le terminal du
+// serveur et le panneau web (/admin) : aucun joueur n'a de pouvoir en jeu.
 //
 // Répartition des rôles :
 //  - chaque client simule SA voiture (et, pour un fuyard, SES voitures de police IA) et envoie leur
@@ -33,7 +35,7 @@ const CAPS = {
 const MULTS = [1, 1.5, 2, 3, 4, 6];
 const REPAIR = { pickup: { max: 40, cd: 12 }, deliver: { max: 25, cd: 18 }, challenge: { max: 35, cd: 20 } };
 
-const DEFAULT_SETTINGS = { preset: 'classique', cops: 0, bots: 'normal', spikes: 'off', timeLimit: 0, copCars: 'auto', weather: 'dynamic', tod: 'sunset', policeSim: 'client', traffic: 'normal' };
+const DEFAULT_SETTINGS = { preset: 'classique', cops: 0, bots: 'normal', spikes: 'off', timeLimit: 0, copCars: 'auto', weather: 'dynamic', tod: 'sunset', policeSim: 'client', traffic: 'normal', deadToCop: false };
 const TRAFFIC = ['off', 'light', 'normal', 'dense'];
 const BOTS = ['off', 'normal', 'renforce'];
 const WEATHERS = ['dynamic', 'clear', 'cloudy', 'rain', 'storm', 'fog'];
@@ -55,6 +57,8 @@ export function normalizeSettings(s = {}) {
   // police IA calculée par le joueur poursuivi (« réactive ») ou par le serveur (anti-triche)
   o.policeSim = s.policeSim === 'server' ? 'server' : 'client';
   o.traffic = TRAFFIC.includes(s.traffic) ? s.traffic : DEFAULT_SETTINGS.traffic;
+  // un fuyard éliminé peut rejoindre la police
+  o.deadToCop = s.deadToCop === true || s.deadToCop === 'on';
   return o;
 }
 
@@ -198,7 +202,7 @@ export class GameServer {
     this.conns.delete(conn);
     if (conn.pendingReq) {
       const r = this.pending.get(conn.pendingReq);
-      if (r) { clearTimeout(r.timer); this.pending.delete(conn.pendingReq); this.notifyAdmins({ t: 'joinreq', req: r.id, gone: true }); }
+      if (r) { clearTimeout(r.timer); this.pending.delete(conn.pendingReq); }
     }
     const p = conn.player;
     if (!p) return;
@@ -240,7 +244,7 @@ export class GameServer {
       case 'ping': p.ping = num(m.rtt, 0, 9999) ?? p.ping; this.send(conn, { t: 'pong', c: m.c, s: this.now() }); break;
       case 'chat': this.onChat(p, m.x); break;
       case 'pref': this.onPref(p, m); break;
-      case 'adm': this.onAdminCode(p, m.code); break;
+      case 'becomecop': this.onBecomeCop(p); break;
       case 'hit': this.onHit(p, m); break;
       case 'rep': this.onRepair(p, m); break;
       case 'sc': this.onScore(p, m); break;
@@ -253,8 +257,6 @@ export class GameServer {
       case 'heat': this.onHeat(p, m); break;
       case 'dropstar': this.onDropStar(p); break;
       case 'view': p.view = { x: num(m.x, -3000, 3000) ?? 0, z: num(m.z, -3000, 3000) ?? 0 }; break;
-      default:
-        if (p.admin) this.onAdmin(p, m);
     }
   }
 
@@ -288,8 +290,7 @@ export class GameServer {
     if (this.players.size >= this.cfg.maxPlayers) return this.drop(conn, 'serveur plein');
     // déjà connecté avec le même compte / navigateur : l'ancienne connexion est fermée
     for (const o of this.players.values()) if ((discord && o.discord?.id === discord.id) || o.cid === cid) this.drop(o.conn, 'connecté ailleurs');
-    info.admin = typeof m.admin === 'string' && m.admin.length > 0 && safeEq(m.admin, this.cfg.adminCode);
-    if (this.cfg.joinApproval && !info.admin) return this.askApproval(conn, info);
+    if (this.cfg.joinApproval) return this.askApproval(conn, info);
     this.accept(conn, info);
   }
 
@@ -299,8 +300,7 @@ export class GameServer {
     const r = { id, conn, info, timer: setTimeout(() => this.resolveRequest(id, false, 'personne n\'a répondu'), 120000) };
     this.pending.set(id, r);
     this.send(conn, { t: 'pending' });
-    log.warn(`Demande d'entrée n°${id} : ${log.bold(info.name)}${info.discord ? ' (Discord)' : ''} — tape « accepter ${id} » ou « refuser ${id} »`);
-    this.notifyAdmins({ t: 'joinreq', req: id, n: info.name, d: !!info.discord });
+    log.warn(`Demande d'entrée n°${id} : ${log.bold(info.name)}${info.discord ? ' (Discord)' : ''} — tape « accepter ${id} » ou « refuser ${id} » (ou panneau web)`);
   }
 
   resolveRequest(id, ok, why = 'refusé par l\'hôte') {
@@ -309,7 +309,6 @@ export class GameServer {
     clearTimeout(r.timer);
     this.pending.delete(id);
     r.conn.pendingReq = null;
-    this.notifyAdmins({ t: 'joinreq', req: id, gone: true });
     if (r.conn.closed) return true;
     if (!ok) { this.drop(r.conn, why); log.info(`Demande n°${id} (${r.info.name}) refusée`); return true; }
     if (this.players.size >= this.cfg.maxPlayers) { this.drop(r.conn, 'serveur plein'); return true; }
@@ -317,8 +316,8 @@ export class GameServer {
     return true;
   }
 
-  notifyAdmins(msg) {
-    for (const p of this.players.values()) if (p.admin) this.send(p.conn, msg);
+  pendingList() {
+    return [...this.pending.values()].map((r) => ({ req: r.id, name: r.info.name, discord: !!r.info.discord, ip: r.info.ip }));
   }
 
   freeId() {
@@ -342,21 +341,20 @@ export class GameServer {
     const key = crypto.createHash('sha256').update(`${this.cfg.salt}|${info.discord ? `d${info.discord.id}` : `c${info.cid}`}`).digest('hex').slice(0, 16);
     const p = {
       id, conn, key, name: this.uniqueName(info.name), discord: info.discord, cid: info.cid, fp: info.fp, ip: info.ip,
-      admin: !!info.admin, pref: 'any', car: 'interceptor', role: 'spectator', ping: 0, chat: new ChatGuard(), smuted: false,
+      pref: 'any', car: 'interceptor', role: 'spectator', ping: 0, chat: new ChatGuard(), smuted: false,
       joinedAt: this.now(), inRound: false, alive: false, view: null,
       scBucket: new Bucket(12, 30), hitBucket: new Bucket(30, 60),
     };
     conn.player = p;
     this.players.set(id, p);
-    log.ok(`${log.bold(p.name)} a rejoint${p.discord ? ' (Discord)' : ''}${p.admin ? ' [admin]' : ''} — ${conn.ip} (${this.players.size}/${this.cfg.maxPlayers})`);
+    log.ok(`${log.bold(p.name)} a rejoint${p.discord ? ' (Discord)' : ''} — ${conn.ip} (${this.players.size}/${this.cfg.maxPlayers})`);
     this.send(conn, {
-      t: 'welcome', id, name: p.name, key, admin: p.admin, ticketBad: info.ticketBad,
+      t: 'welcome', id, name: p.name, key, ticketBad: info.ticketBad,
       server: { name: this.cfg.name, motd: this.cfg.motd, max: this.cfg.maxPlayers, approval: this.cfg.joinApproval, password: !!this.cfg.password, protocol: PROTOCOL },
       time: this.now(),
     });
     this.sys(`${p.name} a rejoint le serveur`, null);
     if (this.cfg.motd) this.sys(this.cfg.motd, p);
-    this.notifyAdmins({ t: 'notify', x: `${p.name} a rejoint` });
     this.lobbyDirty = true;
     this.sendLobby(p);
     // une manche est en cours : on la regarde en spectateur
@@ -369,7 +367,7 @@ export class GameServer {
   lobbyMsg() {
     const players = [...this.players.values()].map((p) => ({
       id: p.id, n: p.name, d: p.discord ? { id: p.discord.id, av: p.discord.avatar } : null, key: p.key,
-      adm: p.admin, pref: p.pref, car: p.car, role: p.role, ping: Math.round(p.ping || 0),
+      pref: p.pref, car: p.car, role: p.role, ping: Math.round(p.ping || 0),
       sc: p.inRound ? Math.floor(p.score || 0) : 0, best: this.bests.get(p.key)?.score || 0,
       alive: !!(p.inRound && p.alive), hp: p.inRound ? Math.round(p.hp) : 0, max: p.inRound ? p.maxHp : 0,
       col: p.color ?? null, muted: p.smuted, kind: p.kind ?? null,
@@ -395,46 +393,39 @@ export class GameServer {
     this.lobbyDirty = true;
   }
 
-  onAdminCode(p, code) {
-    if (typeof code !== 'string' || !code) return;
-    if (safeEq(code, this.cfg.adminCode)) {
-      p.admin = true;
-      this.sys('Tu es maintenant admin du serveur.', p);
-      log.ok(`${p.name} est admin`);
-      this.lobbyDirty = true;
-      this.send(p.conn, { t: 'admin', on: true });
-      for (const r of this.pending.values()) this.send(p.conn, { t: 'joinreq', req: r.id, n: r.info.name, d: !!r.info.discord });
-    } else {
-      const f = this.authFails.get(p.ip) || { n: 0, until: 0 };
-      if (++f.n >= 5) { this.drop(p.conn, 'trop d\'essais de code admin'); f.n = 0; f.until = Date.now() + 60000; }
-      this.authFails.set(p.ip, f);
-      this.sys('Code admin incorrect.', p);
+  // ---- actions de l'hôte (terminal, panneau web) ----
+  hostAction(a, o = {}, by = 'l\'hôte') {
+    const target = typeof o.id === 'number' ? this.players.get(o.id) : null;
+    const why = cleanText(o.why || '', 100);
+    switch (a) {
+      case 'kick': if (target) this.kick(target, why, by); break;
+      case 'ban': if (target) this.ban(target, why, by); break;
+      case 'mute': if (target) { target.smuted = !target.smuted; this.sys(`${target.name} ${target.smuted ? 'ne peut plus écrire' : 'peut de nouveau écrire'} dans le chat`); this.lobbyDirty = true; } break;
+      case 'force': if (target && ['any', 'fugitive', 'cop', 'spectate'].includes(o.pref)) { target.pref = o.pref; this.lobbyDirty = true; } break;
+      case 'set': return this.applySettings(o.s || {}, by);
+      case 'start': return this.startRound(by);
+      case 'stop':
+        if (this.phase !== 'playing' && this.phase !== 'countdown') return 'aucune manche en cours';
+        this.endRound('none', `Manche arrêtée par ${by}`); break;
+      case 'approve': if (!this.resolveRequest(Number(o.req), !!o.ok)) return 'demande introuvable'; break;
+      case 'say': if (o.text) { const x = cleanText(o.text); this.broadcast({ t: 'chat', sys: true, host: true, x }); log.chat('hôte', x); } break;
+      default: return 'action inconnue';
     }
-  }
-
-  onAdmin(p, m) {
-    const target = typeof m.id === 'number' ? this.players.get(m.id) : null;
-    switch (m.t) {
-      case 'kick': if (target && target !== p) this.kick(target, cleanText(m.why || '', 100), p.name); break;
-      case 'ban': if (target && target !== p) this.ban(target, cleanText(m.why || '', 100), p.name); break;
-      case 'smute': if (target) { target.smuted = !target.smuted; this.sys(`${target.name} ${target.smuted ? 'ne peut plus écrire' : 'peut de nouveau écrire'} dans le chat`); this.lobbyDirty = true; } break;
-      case 'force': if (target && ['any', 'fugitive', 'cop', 'spectate'].includes(m.pref)) { target.pref = m.pref; this.lobbyDirty = true; } break;
-      case 'set': this.applySettings(m.s || {}, p.name); break;
-      case 'start': this.startRound(p.name); break;
-      case 'stop': if (this.phase === 'playing' || this.phase === 'countdown') this.endRound('none', `Manche arrêtée par ${p.name}`); break;
-      case 'approve': this.resolveRequest(Number(m.req), !!m.ok); break;
-    }
+    return null;
   }
 
   applySettings(s, by) {
-    if (this.phase === 'playing' || this.phase === 'countdown') return;
-    const keep = { weather: this.settings.weather, tod: this.settings.tod, policeSim: this.settings.policeSim, traffic: this.settings.traffic };
-    const merged = s.preset && s.preset !== this.settings.preset ? { ...PRESETS[s.preset], preset: s.preset, ...keep } : { ...this.settings, ...s };
+    if (this.phase === 'playing' || this.phase === 'countdown') return 'manche en cours : réglages modifiables au salon';
+    const keep = { weather: this.settings.weather, tod: this.settings.tod, policeSim: this.settings.policeSim, traffic: this.settings.traffic, deadToCop: this.settings.deadToCop };
+    // nouveau préréglage : ses valeurs, sans perdre l'ambiance ni les choix du serveur ; puis les autres réglages demandés
+    const { preset, ...rest } = s;
+    const merged = preset && preset !== this.settings.preset ? { ...PRESETS[preset], preset, ...keep, ...rest } : { ...this.settings, ...s };
     this.settings = normalizeSettings(merged);
     this.cfg.settings = this.settings;
     this.saveConfig(this.cfg);
     this.lobbyDirty = true;
     if (by) log.info(`Réglages changés par ${by} : ${PRESETS[this.settings.preset].label}`);
+    return null;
   }
 
   kick(p, why, by = 'la console') {
@@ -456,7 +447,7 @@ export class GameServer {
     const text = cleanText(raw);
     if (!text) return;
     if (text.startsWith('/')) return this.onCommand(p, text);
-    if (p.smuted) return this.sys('Un admin t\'a rendu muet.', p);
+    if (p.smuted) return this.sys('L\'hôte t\'a interdit le chat.', p);
     const no = p.chat.check(text);
     if (no) return this.sys(no, p);
     log.chat(p.name, text);
@@ -464,22 +455,9 @@ export class GameServer {
   }
 
   onCommand(p, text) {
-    const [cmd, ...rest] = text.slice(1).split(' ');
-    const arg = rest.join(' ').trim();
-    const find = () => this.findPlayer(arg);
-    switch (cmd.toLowerCase()) {
-      case 'aide': case 'help':
-        this.sys(`Commandes : /joueurs${p.admin ? ', /kick nom, /ban nom, /muet nom, /lancer, /stop' : ', /admin CODE'}`, p); break;
-      case 'joueurs': case 'qui':
-        this.sys([...this.players.values()].map((o) => o.name).join(', '), p); break;
-      case 'admin': this.onAdminCode(p, arg); break;
-      case 'kick': if (p.admin) { const t = find(); if (t && t !== p) this.kick(t, '', p.name); else this.sys('Joueur introuvable', p); } break;
-      case 'ban': if (p.admin) { const t = find(); if (t && t !== p) this.ban(t, '', p.name); else this.sys('Joueur introuvable', p); } break;
-      case 'muet': case 'mute': if (p.admin) { const t = find(); if (t) this.onAdmin(p, { t: 'smute', id: t.id }); } break;
-      case 'lancer': case 'start': if (p.admin) this.startRound(p.name); break;
-      case 'stop': if (p.admin) this.onAdmin(p, { t: 'stop' }); break;
-      default: this.sys('Commande inconnue (/aide)', p);
-    }
+    const cmd = text.slice(1).split(' ')[0].toLowerCase();
+    if (cmd === 'joueurs' || cmd === 'qui') this.sys([...this.players.values()].map((o) => o.name).join(', '), p);
+    else this.sys('Commandes : /joueurs', p);
   }
 
   findPlayer(q) {
@@ -544,7 +522,7 @@ export class GameServer {
       inRound: true, alive: true, role, kind, color, maxHp: HP[kind], hp: HP[kind],
       st: null, stT: 0, valid: null, viol: [], tpAllow: null, resetT: -99,
       bust: 0, bustSent: 0, respawnAt: 0, respawnOk: false, bots: [], botsT: 0,
-      score: 0, ppT: this.now(), stats: { kills: 0, busts: 0, dmg: 0, spikes: 0, deaths: 0, surv: 0, heists: 0 },
+      score: 0, ppT: this.now(), turned: false, stats: { kills: 0, busts: 0, dmg: 0, spikes: 0, deaths: 0, surv: 0, heists: 0 },
       rep: {}, lastHitBy: null, lastHitT: 0, pairs: new Map(), deadAt: 0,
     });
   }
@@ -553,7 +531,7 @@ export class GameServer {
     const r = this.round;
     return {
       t: 'round', id: r.id, seed: r.seed, startAt: r.startAt, endAt: r.endAt, now: this.now(), phase: this.phase,
-      bots: r.bots, spikes: r.spikes, weather: this.settings.weather, tod: this.settings.tod, policeSim: r.policeSim, traffic: r.traffic,
+      bots: r.bots, spikes: r.spikes, weather: this.settings.weather, tod: this.settings.tod, policeSim: r.policeSim, traffic: r.traffic, deadToCop: this.settings.deadToCop,
       fugitives: r.fugitives, cops: r.cops, order: r.order,
       roster: [...this.players.values()].filter((p) => p.inRound).map((p) => ({ id: p.id, n: p.name, role: p.role, kind: p.kind, col: p.color })),
     };
@@ -578,7 +556,7 @@ export class GameServer {
       if (p.role === 'fugitive' && p.alive && winner === 'fugitives') p.score += 3000; // survivant
       if (p.role === 'fugitive') p.stats.surv = Math.max(p.stats.surv, (p.alive ? now : p.deadAt) - this.round.startAt);
       const sc = Math.floor(p.score);
-      rows.push({ id: p.id, n: p.name, role: p.role, kind: p.kind, col: p.color, sc, alive: p.alive, ...p.stats, surv: Math.round(p.stats.surv) });
+      rows.push({ id: p.id, n: p.name, role: p.role, kind: p.kind, col: p.color, sc, alive: p.alive, turned: !!p.turned, ...p.stats, surv: Math.round(p.stats.surv) });
       const b = this.bests.get(p.key);
       if (!b || sc > b.score) this.bests.set(p.key, { name: p.name, score: sc });
     }
@@ -851,6 +829,26 @@ export class GameServer {
     if (!sq || now - (p.dropT ?? -99) < 40) return;
     p.dropT = now;
     sq.wanted.dropStar();
+  }
+
+  // fuyard éliminé qui rejoint la police (si l'hôte l'a autorisé) : retour en service dans 8 s
+  onBecomeCop(p) {
+    if (!this.settings.deadToCop || !p.inRound || p.role !== 'fugitive' || p.alive || this.phase !== 'playing') return;
+    const cars = this.round.cars;
+    p.role = 'cop';
+    p.kind = cars.includes('police') ? 'police' : cars.includes(p.car) ? p.car : cars[0];
+    p.maxHp = HP[p.kind];
+    p.color = null;
+    p.bots = [];
+    p.respawnAt = this.now() + 8;
+    p.respawnOk = false;
+    const spk = SPIKES[this.round.spikes];
+    p.spk = { n: spk.max, next: 0 };
+    p.turned = true;
+    if (this.sim) this.sim.removePlayer(p.id);
+    this.broadcast({ t: 'role', id: p.id, role: 'cop', kind: p.kind, respawn: 8 });
+    this.sys(`${p.name} rejoint la police !`);
+    this.lobbyDirty = true;
   }
 
   onBustedByBots(p) {

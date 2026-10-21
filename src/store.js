@@ -9,10 +9,10 @@ const DEFAULTS = {
   port: 7777,
   password: '',
   maxPlayers: 12,
-  adminCode: '',
   joinApproval: false,
   motd: 'Bienvenue ! Tape /aide dans le chat.',
   publicHost: [],
+  panelRemote: false,
   settings: null,
 };
 
@@ -22,9 +22,9 @@ const COMMENT = {
     'port : port TCP (ouvrir / rediriger ce port sur la box ou le VPS)',
     'password : mot de passe pour rejoindre (vide = serveur ouvert)',
     'maxPlayers : 2 à 20',
-    'adminCode : code admin ; dans le jeu, tape /admin CODE dans le chat (ou mets-le en rejoignant)',
-    'joinApproval : true = chaque arrivée doit être acceptée par un admin (notification)',
-    'panelPassword : mot de passe du panneau admin web (http://IP:port/admin)',
+    'joinApproval : true = chaque arrivée doit être acceptée par l\'hôte (terminal ou panneau web)',
+    'panelPassword : mot de passe du panneau admin web (http://localhost:port/admin)',
+    'panelRemote : false = panneau utilisable seulement depuis le PC du serveur ; true = aussi depuis le réseau (mot de passe en clair en http)',
     'publicHost : adresses par lesquelles les joueurs te rejoignent (ex. "mon-serveur.fr:7777"), seulement si tu es derrière un proxy',
   ],
 };
@@ -36,9 +36,10 @@ export function loadConfig(file, overrides = {}) {
   }
   const created = !fs.existsSync(file);
   cfg = { ...DEFAULTS, ...cfg };
-  if (!cfg.adminCode) cfg.adminCode = crypto.randomBytes(4).toString('hex');
   if (!cfg.salt) cfg.salt = crypto.randomBytes(12).toString('hex'); // sert à anonymiser l'identité des joueurs
   if (!cfg.panelPassword) cfg.panelPassword = crypto.randomBytes(9).toString('base64url'); // panneau admin web
+  cfg.panelRemote = cfg.panelRemote === true;
+  delete cfg.adminCode; // ancienne version : plus de code admin en jeu
   cfg.maxPlayers = Math.max(2, Math.min(20, Math.floor(Number(cfg.maxPlayers) || 12)));
   cfg.port = Math.max(1, Math.min(65535, Math.floor(Number(cfg.port) || 7777)));
   cfg.name = String(cfg.name || DEFAULTS.name).slice(0, 40);

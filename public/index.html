@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Russo+One&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="./assets/index-CbMnEbl8.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-B5xKg66n.css">
+  <script type="module" crossorigin src="./assets/index-DWcX-ePW.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-zuQaGcMZ.css">
 </head>
 <body>
   <div id="gl"></div>
@@ -273,7 +273,6 @@
       <div id="mpcDiscord" class="mpDiscord hidden"></div>
       <label class="mpField" id="mpcPseudoRow"><span>PSEUDO</span><input id="mpcPseudo" maxlength="16" autocomplete="nickname" spellcheck="false" /></label>
       <label class="mpField hidden" id="mpcPassRow"><span>MOT DE PASSE DU SERVEUR</span><input id="mpcPass" type="password" maxlength="64" autocomplete="off" /></label>
-      <details class="mpHost"><summary>Je suis l'hôte (code admin)</summary><label class="mpField"><span>CODE ADMIN</span><input id="mpcAdmin" maxlength="32" autocomplete="off" spellcheck="false" /></label></details>
       <button id="mpcJoin" class="big">REJOINDRE</button>
       <div id="mpcStatus" class="mpStatus"></div>
       <p class="tips" id="mpcTip">Pour jouer avec ton compte Discord, passe par le bouton MULTIJOUEUR du site.</p>
@@ -290,7 +289,6 @@
         </div>
         <div class="mpHeadRight">
           <div id="mplPhase" class="mpPhase"></div>
-          <button id="mplPanel" class="hidden">PANNEAU ADMIN</button>
           <button id="mplOptions">OPTIONS</button>
           <button id="mplLeave">QUITTER</button>
         </div>
@@ -305,11 +303,10 @@
         <div class="seg mpSeg" id="mplPref"><button data-v="any">Peu importe</button><button data-v="fugitive">Fuyard</button><button data-v="cop">Flic</button><button data-v="spectate">Spectateur</button></div>
         <div class="mpSecTitle small">TA VOITURE SI TU ES FLIC</div>
         <div class="mpCars" id="mplCars"></div>
-        <div class="mpSecTitle">PARTIE <span id="mplAdminTag" class="mpBadge hidden">ADMIN</span></div>
+        <div class="mpSecTitle">PARTIE <span class="mpMuted small">réglée par l'hôte</span></div>
         <div id="mplPresets" class="mpPresets"></div>
         <div id="mplSettings" class="mpSettings"></div>
         <div id="mplSummary" class="mpSummary"></div>
-        <button id="mplStart" class="big hidden">LANCER LA MANCHE</button>
         <div id="mplWait" class="mpMuted">En attente de l'hôte pour lancer la manche…</div>
       </section>
     </div>
@@ -335,6 +332,11 @@
   <div id="mpBar" class="hidden"></div>
   <div id="mpCenter" class="hidden"><div id="mpCenterBig"></div><div id="mpCenterSub"></div></div>
   <div id="mpSpikes" class="hidden"></div>
+  <div id="mpSpec" class="hidden">
+    <div class="mpSpecMain"><button id="mpsPrev" title="Joueur précédent (←)">◀</button><div id="mpsName"></div><button id="mpsNext" title="Joueur suivant (→)">▶</button></div>
+    <div id="mpsList"></div>
+    <button id="mpsCop" class="big hidden">REJOINDRE LA POLICE</button>
+  </div>
   <div id="mpToasts"></div>
 
   <div id="mpEsc" class="screen hidden">
@@ -343,8 +345,6 @@
       <button id="mpeResume" class="big">REPRENDRE</button>
       <button id="mpeOptions">OPTIONS</button>
       <button id="mpeControls">COMMANDES</button>
-      <button id="mpeStop" class="hidden">ARRÊTER LA MANCHE (ADMIN)</button>
-      <button id="mpePanel" class="hidden">PANNEAU ADMIN (STATS)</button>
       <button id="mpeQuit">QUITTER LE SERVEUR</button>
       <p class="tips">La partie continue pendant que ce menu est ouvert.</p>
     </div>
