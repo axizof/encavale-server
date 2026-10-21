@@ -1,6 +1,6 @@
 {
   "name": "encavale-server",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Serveur multijoueur du jeu En Cavale (à héberger soi-même, comme un serveur Minecraft)",
   "type": "module",
   "main": "src/main.ts",
