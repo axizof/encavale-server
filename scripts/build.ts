@@ -6,7 +6,7 @@ import path from 'node:path';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const { version } = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-const TARGETS = {
+const TARGETS: Record<string, string> = {
   'linux-x64': 'bun-linux-x64', 'linux-arm64': 'bun-linux-arm64',
   'windows-x64': 'bun-windows-x64', 'macos-x64': 'bun-darwin-x64', 'macos-arm64': 'bun-darwin-arm64',
 };
@@ -15,5 +15,5 @@ fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 for (const name of wanted) {
   const out = path.join('dist', `encavale-server-${version}-${name}${name.startsWith('windows') ? '.exe' : ''}`);
   console.log(`→ ${out}`);
-  execSync(`bun build src/main.js --compile --minify --target=${TARGETS[name]} --outfile ${out}`, { cwd: root, stdio: 'inherit' });
+  execSync(`bun build src/main.ts --compile --minify --target=${TARGETS[name]} --outfile ${out}`, { cwd: root, stdio: 'inherit' });
 }

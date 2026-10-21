@@ -1,9 +1,23 @@
 // Mesures du serveur, une par seconde : processeur, mémoire, latence de la boucle, temps de calcul,
 // réseau, joueurs et voitures simulées. Historique : 1 h à la seconde, 24 h à la minute.
-const KEYS = ['cpu', 'rss', 'heap', 'lag', 'lagMax', 'tick', 'sim', 'out', 'in', 'players', 'traffic', 'police'];
+import type { GameServer } from './server.ts';
+
+const KEYS = ['cpu', 'rss', 'heap', 'lag', 'lagMax', 'tick', 'sim', 'out', 'in', 'players', 'traffic', 'police'] as const;
+type Key = typeof KEYS[number];
+export type Sample = Record<Key, number> & { t: number; cpuMax?: number };
 
 export class Metrics {
-  constructor(srv) {
+  srv: GameServer;
+  sec: Sample[];
+  min: Sample[];
+  acc: Sample[];
+  lagSum: number; lagN: number; lagPeak: number;
+  lagTimer: NodeJS.Timeout;
+  cpu: NodeJS.CpuUsage;
+  t: bigint;
+  started: number;
+  timer: NodeJS.Timeout;
+  constructor(srv: GameServer) {
     this.srv = srv;
     this.sec = []; // 3600 dernières secondes
     this.min = []; // 1440 dernières minutes
@@ -24,7 +38,7 @@ export class Metrics {
     this.timer.unref?.();
   }
 
-  sample() {
+  sample(): void {
     const now = process.hrtime.bigint();
     const us = Number(now - this.t) / 1000;
     const c = process.cpuUsage(this.cpu);
@@ -35,7 +49,7 @@ export class Metrics {
     const ss = srv.sim ? srv.sim.stats() : { traffic: 0, police: 0 };
     let police = ss.police;
     for (const p of srv.players.values()) if (p.inRound && p.alive && p.bots) police += p.bots.length; // polices « réactives » des joueurs
-    const s = {
+    const s: Sample = {
       t: Date.now(),
       cpu: Math.round(((c.user + c.system) / us) * 1000) / 10, // % d'un cœur
       rss: Math.round(mem.rss / 1048576),
@@ -57,7 +71,7 @@ export class Metrics {
     if (this.sec.length > 3600) this.sec.shift();
     this.acc.push(s);
     if (this.acc.length >= 60) {
-      const m = { t: s.t };
+      const m = { t: s.t } as Sample;
       for (const k of KEYS) m[k] = Math.round((this.acc.reduce((a, x) => a + x[k], 0) / this.acc.length) * 10) / 10;
       m.cpuMax = Math.max(...this.acc.map((x) => x.cpu));
       this.min.push(m);
@@ -66,23 +80,23 @@ export class Metrics {
     }
   }
 
-  last() { return this.sec[this.sec.length - 1] || null; }
+  last(): Sample | null { return this.sec[this.sec.length - 1] || null; }
 
   /** range : '5m' (secondes), '1h' (secondes), '24h' (minutes) */
-  history(range) {
+  history(range: string): Sample[] {
     if (range === '24h') return this.min;
     if (range === '1h') return this.sec;
     return this.sec.slice(-300);
   }
 
   /** moyenne des n dernières secondes */
-  avg(n = 60) {
+  avg(n = 60): Record<Key, number> | null {
     const xs = this.sec.slice(-n);
     if (!xs.length) return null;
-    const o = {};
+    const o = {} as Record<Key, number>;
     for (const k of KEYS) o[k] = Math.round((xs.reduce((a, x) => a + x[k], 0) / xs.length) * 10) / 10;
     return o;
   }
 
-  uptime() { return Math.floor((Date.now() - this.started) / 1000); }
+  uptime(): number { return Math.floor((Date.now() - this.started) / 1000); }
 }

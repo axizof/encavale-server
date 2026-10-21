@@ -1,19 +1,29 @@
 {
   "name": "encavale-server",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Serveur multijoueur du jeu En Cavale (à héberger soi-même, comme un serveur Minecraft)",
   "type": "module",
-  "main": "src/main.js",
-  "bin": { "encavale-server": "src/main.js" },
-  "scripts": {
-    "start": "node src/main.js",
-    "embed": "node scripts/embed-public.js",
-    "build": "node scripts/embed-public.js && node scripts/build.js",
-    "test": "node --test test/*.test.js"
+  "main": "src/main.ts",
+  "bin": {
+    "encavale-server": "src/main.ts"
   },
-  "engines": { "node": ">=20.10" },
+  "scripts": {
+    "start": "node src/main.ts",
+    "embed": "node scripts/embed-public.ts",
+    "build": "node scripts/embed-public.ts && node scripts/build.ts",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc -p ."
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
   "dependencies": {
     "ws": "^8.18.0"
   },
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.9.3"
+  }
 }

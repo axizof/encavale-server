@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Russo+One&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="./assets/index-DWcX-ePW.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-zuQaGcMZ.css">
+  <script type="module" crossorigin src="./assets/index-eO74oiCr.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-9TFjPwKZ.css">
 </head>
 <body>
   <div id="gl"></div>
@@ -303,11 +303,15 @@
         <div class="seg mpSeg" id="mplPref"><button data-v="any">Peu importe</button><button data-v="fugitive">Fuyard</button><button data-v="cop">Flic</button><button data-v="spectate">Spectateur</button></div>
         <div class="mpSecTitle small">TA VOITURE SI TU ES FLIC</div>
         <div class="mpCars" id="mplCars"></div>
-        <div class="mpSecTitle">PARTIE <span class="mpMuted small">réglée par l'hôte</span></div>
+        <div class="mpSecTitle">PARTIE <span class="mpMuted small" id="mplSetTitle">réglée par l'hôte</span></div>
         <div id="mplPresets" class="mpPresets"></div>
         <div id="mplSettings" class="mpSettings"></div>
         <div id="mplSummary" class="mpSummary"></div>
         <div id="mplWait" class="mpMuted">En attente de l'hôte pour lancer la manche…</div>
+        <div id="mplAdmin" class="mpAdmin hidden">
+          <div id="mplPend" class="mpPend hidden"></div>
+          <div class="mpAdminBtns"><button id="mplStart" class="big">LANCER LA MANCHE</button><button id="mplStop" class="danger">ARRÊTER LA MANCHE</button></div>
+        </div>
       </section>
     </div>
   </div>
@@ -346,6 +350,11 @@
       <button id="mpeOptions">OPTIONS</button>
       <button id="mpeControls">COMMANDES</button>
       <button id="mpeQuit">QUITTER LE SERVEUR</button>
+      <div id="mpeAdmin" class="mpAdmin hidden">
+        <div class="mpSecTitle small">ADMIN</div>
+        <div id="mpePend" class="mpPend hidden"></div>
+        <button id="mpeStop" class="danger">ARRÊTER LA MANCHE</button>
+      </div>
       <p class="tips">La partie continue pendant que ce menu est ouvert.</p>
     </div>
   </div>

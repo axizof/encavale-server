@@ -6,8 +6,10 @@ import crypto from 'node:crypto';
 
 export const TICKET_PUBLIC_KEY = 'iy/sR+Wid42C39Ch+VAapWmfoAHbEygTHjTNIi75h08=';
 
-let keyObj = null;
-function publicKey(b64) {
+export interface DiscordIdentity { id: string; name: string; avatar: string | null }
+
+let keyObj: { b64: string; key: crypto.KeyObject } | null = null;
+function publicKey(b64: string): crypto.KeyObject {
   if (keyObj && keyObj.b64 === b64) return keyObj.key;
   const raw = Buffer.from(b64, 'base64');
   if (raw.length !== 32) throw new Error('clé publique invalide');
@@ -17,11 +19,10 @@ function publicKey(b64) {
 }
 
 /**
- * @param {string} ticket   payloadBase64url.signatureBase64url
- * @param {string[]} hosts  adresses acceptées pour « aud » (en-tête Host de la connexion, config)
- * @returns {{id:string,name:string,avatar:string|null}|null}
+ * ticket : payloadBase64url.signatureBase64url
+ * hosts  : adresses acceptées pour « aud » (en-tête Host de la connexion, config)
  */
-export function verifyTicket(ticket, hosts, pubB64 = TICKET_PUBLIC_KEY) {
+export function verifyTicket(ticket: unknown, hosts: string[], pubB64: string = TICKET_PUBLIC_KEY): DiscordIdentity | null {
   if (typeof ticket !== 'string' || ticket.length > 1200) return null;
   const parts = ticket.split('.');
   if (parts.length !== 2) return null;

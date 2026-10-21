@@ -14,7 +14,8 @@ EN CAVALE — serveur multijoueur
 3. Tu administres le serveur depuis ce terminal (tape « aide ») ou depuis le panneau web, sur
    ce PC : http://localhost:7777/admin, avec le mot de passe « panelPassword » affiché au
    démarrage. Réglages, lancement des manches, arrivées, expulsions, bannissements, stats.
-   Aucun joueur n'a de pouvoir admin dans le jeu.
+   Tu peux aussi nommer des admins en jeu, seulement des comptes Discord vérifiés :
+   « admin <joueur> » dans ce terminal, ou le bouton ☆ Admin du panneau.
 
 Mac : si macOS dit que le fichier est « endommagé » ou vient d'un « développeur non identifié »,
 c'est normal (exécutable non signé par Apple). Dans un terminal, dans le dossier :

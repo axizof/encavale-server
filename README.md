@@ -5,11 +5,13 @@ Le serveur multijoueur du jeu **En Cavale**, à héberger soi-même, comme un se
 - Jusqu'à **20 joueurs** : des fuyards, des flics joueurs et, si tu veux, la police IA du jeu solo en renfort.
 - Des **préréglages** pour répartir les rôles automatiquement, et un mode **personnalisé**.
 - Un **chat** avec anti-flood, et la possibilité de masquer les messages de quelqu'un.
-- Pour l'hôte, **depuis son terminal ou son panneau web uniquement** (aucun pouvoir admin en jeu) : **mot de passe**, **accord de l'hôte** pour chaque arrivée, **expulsion**, **bannissement**, réglages et lancement des manches.
+- Pour l'hôte, depuis son **terminal** ou son **panneau web** : **mot de passe**, **accord de l'hôte** pour chaque arrivée, **expulsion**, **bannissement**, réglages et lancement des manches. Il peut aussi nommer des **admins en jeu**, uniquement des comptes Discord vérifiés : pas de code à deviner.
 - Le **serveur fait foi** : la vie, les morts, les arrestations, les scores et les positions impossibles sont vérifiés côté serveur.
 - **Circulation civile partagée**, simulée par le serveur : tout le monde voit les mêmes voitures, et seulement autour des joueurs.
 - **Police IA** au choix de l'hôte : calculée par le joueur poursuivi (réactive) ou par le serveur (anti-triche).
 - **Panneau admin web** protégé par mot de passe, accessible seulement depuis le PC du serveur par défaut : réglages de la partie, manches, demandes d'entrée, joueurs, statistiques avec historique, journal.
+- **Objectifs gérés par le serveur** : chaque fuyard a son braquage et son receleur, les flics les voient sur la carte, et de temps en temps un **gros coup** commun (butin ×3) est raflé par le premier qui le braque. Les **réparations** sont communes, et leur nombre suit le nombre de fuyards encore en jeu.
+- **Mouvement fluide** des autres voitures (positions datées, interpolation en courbe) et **chocs réalistes** entre joueurs : chacun garde sa masse.
 - **Spectateur** : ◀ ▶ ou clic sur un pseudo pour suivre qui on veut. **Option** : un fuyard éliminé peut rejoindre la police.
 
 ## Sommaire
@@ -45,7 +47,7 @@ Décompresse-la dans un dossier à toi, puis lance l'exécutable :
 Au premier lancement, le serveur crée **`config.json`** à côté de l'exécutable, puis affiche les adresses où le rejoindre et le **mot de passe du panneau admin** :
 
 ```
-  EN CAVALE — serveur multijoueur v1.0.0
+  EN CAVALE — serveur multijoueur v1.3.0 (protocole 3)
   Sur ce PC    : http://localhost:7777
   Réseau local : http://192.168.1.20:7777
   Internet     : http://TON-IP-PUBLIQUE:7777  (ouvre/redirige le port 7777 TCP sur ta box ou ton VPS)
@@ -81,6 +83,7 @@ Le serveur **sert le jeu lui-même**. Les joueurs n'ont rien à installer : la p
 | `motd` | message de bienvenue | Message affiché à l'arrivée. |
 | `panelPassword` | aléatoire | Mot de passe du **panneau admin web** (`http://localhost:port/admin`). Il s'affiche au démarrage. |
 | `panelRemote` | `false` | `false` : le panneau ne répond qu'au PC du serveur. `true` : aussi depuis le réseau (le mot de passe passe alors en clair, voir plus bas). |
+| `admins` | `[]` | Identifiants Discord des **admins en jeu** (rempli par la commande `admin <joueur>` ou le panneau). |
 | `publicHost` | `[]` | Seulement derrière un reverse proxy : adresses publiques du serveur, pour accepter les tickets Discord. |
 | `settings` | — | Derniers réglages de partie (mis à jour par le serveur). |
 
@@ -88,12 +91,20 @@ Relance le serveur après avoir modifié le fichier. Les bannissements sont dans
 
 ## 5. Administrer
 
-**Aucun joueur n'a de pouvoir en jeu.** Il n'y a pas de code admin à taper dans le chat qu'un joueur pourrait récupérer. L'hôte administre son serveur depuis deux endroits seulement : **le terminal du serveur** et **le panneau web**. Dans le jeu, les joueurs voient les réglages en lecture seule et choisissent seulement leur rôle préféré et leur voiture de flic.
+L'hôte administre son serveur depuis **le terminal du serveur** et **le panneau web**. Il n'y a **pas de code admin** à taper dans le chat, qu'un joueur pourrait récupérer.
+
+**Admins en jeu** : l'hôte peut donner les commandes à des joueurs de confiance, **seulement s'ils sont connectés avec Discord** (passés par le site). Leur identité est garantie par le ticket signé du site : personne ne peut se faire passer pour eux. Pour en nommer un : `admin <joueur>` dans le terminal, ou le bouton **☆ Admin** du panneau. On peut aussi ajouter un identifiant Discord directement (`admin+ 123…`, ou le champ du panneau). Un admin en jeu peut :
+- régler la partie depuis le salon, **lancer** et **arrêter** une manche (aussi depuis le menu Échap en pleine partie) ;
+- accepter ou refuser les **demandes d'entrée** (il les reçoit en notification, sans les adresses IP) ;
+- forcer le rôle d'un joueur, lui couper le chat, l'**expulser** ou le **bannir**, sauf un autre admin.
+
+Mots de passe, liste des admins et bannis restent réservés à l'hôte. Les autres joueurs voient les réglages en lecture seule et choisissent leur rôle préféré et leur voiture de flic.
 
 **Panneau admin web** : `http://localhost:port/admin`, sur le PC du serveur, protégé par le mot de passe `panelPassword` (affiché au démarrage, modifiable avec `panneau NOUVEAU-MDP`). On y trouve :
-- la **partie** : préréglage, police IA (aucune, normale, renforcée ; calculée par le joueur ou par le serveur), circulation, herses, « un fuyard éliminé peut rejoindre la police », durée, météo, heure ; boutons **Lancer la manche** et **Arrêter la manche** ;
+- la **partie** : mode de jeu, puis les réglages rangés par thème (police, règles, ambiance), avec un résumé de la répartition des rôles et un gros bouton **Lancer** / **Arrêter la manche** ;
 - les **demandes d'entrée** (si l'accord de l'hôte est activé), avec Accepter et Refuser ;
-- les **joueurs** : rôle, rôle souhaité (modifiable), score, ping, IP, et les boutons couper le chat, expulser, bannir ; une annonce dans le chat ;
+- les **joueurs** : rôle, état, rôle souhaité (modifiable), score, ping, IP, et les boutons admin, couper le chat, expulser, bannir ; une annonce dans le chat ;
+- les **accès** : accord de l'hôte, mot de passe du serveur, admins en jeu, bannis (avec débannir) ;
 - les **statistiques** : processeur, mémoire, temps de calcul, latence, réseau, voitures, en direct et sur 5 min, 1 h ou 24 h ;
 - le **journal** du serveur.
 
@@ -115,8 +126,11 @@ set bots normal          bots (off|normal|renforce), herses (off|rare|normal|bea
                          flics (nombre), temps (minutes, 0 = illimité),
                          meteo (dynamic|clear|rain|fog|storm), heure (day|sunset|night),
                          circulation (off|light|normal|dense), police (client|server),
-                         renfort (on|off : un fuyard éliminé peut rejoindre la police)
+                         renfort (on|off : un fuyard éliminé peut rejoindre la police),
+                         groscoups (on|off : braquages communs à tous les fuyards)
 kick <joueur> [raison]   ban <joueur> [raison]   bans   unban <n°|nom>
+admin <joueur>           donner / retirer les commandes en jeu (compte Discord)
+admins                   liste ; admin+ <id Discord> / admin- <id Discord>
 muet <joueur>            role <joueur> <any|fugitive|cop|spectate>   dire <message>
 accepter <n°> / refuser <n°>     approbation on|off     motdepasse <mdp|off>
 stats                    processeur, mémoire, réseau, voitures (moyennes 1 min / 1 h)
@@ -142,9 +156,10 @@ Chaque joueur indique sa préférence au salon (peu importe, fuyard, flic ou spe
 - **Police IA, deux modes** :
   - *Réactive* (par défaut) : le PC du fuyard poursuivi fait rouler sa police et l'envoie aux autres. C'est parfaitement fluide pour lui. Si sa connexion est mauvaise, les autres le voient saccader, lui et sa police, mais ensemble et de façon cohérente.
   - *Serveur* : le serveur fait rouler la police, gère les étoiles, les barrages et les herses. Impossible à tricher, mais avec une mauvaise connexion le fuyard voit ses poursuivants avec un léger décalage.
-- **Fuyards** : la vraie partie solo (braquages, livraisons, défis), en survivant. S'ils sont détruits ou arrêtés, ils passent **spectateurs** jusqu'à la manche suivante : barre ◀ pseudo ▶ (ou ← →) et liste des joueurs cliquable pour suivre qui on veut. Si l'hôte active l'option « **un fuyard éliminé peut rejoindre la police** », un bouton **REJOINDRE LA POLICE** le remet en jeu en voiture de flic 8 s plus tard. Avec la police IA, chaque fuyard a ses propres poursuivants : la police se divise. Plus il y a de fuyards, plus elle est nombreuse et agressive.
+- **Fuyards** : la partie solo (braquages, livraisons, défis), en survivant. Les **objectifs** sont tirés et validés par le serveur (s'il a son moteur de simulation) : chaque fuyard a **son** braquage puis **son** receleur, avec un chrono. Les flics les voient sur la carte (carré : braquage, losange : receleur) et dans leur panneau de mission. Toutes les 2 à 4 minutes, s'il y a de la concurrence (2 fuyards, ou des flics joueurs), un **gros coup** commun apparaît pour tout le monde (balise violette) : le premier fuyard qui le braque rafle un butin **×3**, et tous le savent. Les **réparations** (bulles vertes) sont communes : une pour deux fuyards encore en jeu (de 1 à 6), le premier qui passe dessus la prend. S'ils sont détruits ou arrêtés, ils passent **spectateurs** jusqu'à la manche suivante : barre ◀ pseudo ▶ (ou ← →) et liste des joueurs cliquable pour suivre qui on veut. Si l'hôte active l'option « **un fuyard éliminé peut rejoindre la police** », un bouton **REJOINDRE LA POLICE** le remet en jeu en voiture de flic 8 s plus tard. Avec la police IA, chaque fuyard a ses propres poursuivants : la police se divise. Plus il y a de fuyards, plus elle est nombreuse et agressive.
 - **Flics joueurs** : il faut détruire les fuyards (les chocs comptent) ou les **arrêter** (fuyard immobilisé, flic collé à lui pendant 3 s). Un flic détruit repart **40 s** plus tard, assez loin des fuyards. La radio donne la position de tous les fuyards toutes les 8 s.
 - **Voitures de flic** : moins il y a de flics par rapport aux fuyards, plus elles sont fortes. Peu de flics : Intercepteur, SUV ou Berline. Autant de flics que de fuyards : SUV ou Berline. Beaucoup de flics : Berline seulement.
+- **Apparitions** : les voitures civiles, les renforts et les barrages de police n'apparaissent jamais sous les yeux d'un joueur, quel qu'il soit (pas seulement le fuyard poursuivi).
 - **Herses** (touche **F**) : en nombre limité, elles se rechargent avec le temps, et plus lentement quand il y a beaucoup de flics. Deux au maximum posées en même temps par flic, pendant 30 s.
 - **Fin de manche** : quand tous les fuyards sont tombés (victoire des flics) ou à la fin du temps (les survivants gagnent, avec un bonus). Le classement de la manche s'affiche, puis tout le monde revient au salon. Le **meilleur score du serveur** est gardé tant qu'il tourne.
 
@@ -168,7 +183,8 @@ Les 300 Mo de départ correspondent surtout à la carte, gardée en mémoire pou
 
 Chaque joueur simule sa propre voiture, et le serveur vérifie tout ce qui compte :
 - **La vie appartient au serveur.** Un joueur qui se remet de la vie en trichant ne gagne rien : les autres voient la vraie valeur, et sa voiture est détruite quand le serveur le décide. Les réparations (bonus, livraisons, défis) sont plafonnées et espacées.
-- **Les chocs entre joueurs** sont signalés par les deux voitures, et le serveur garde le plus fort. Mentir sur ses propres dégâts ne protège donc pas d'un flic.
+- **Les chocs entre joueurs** sont signalés par les deux voitures, et le serveur garde le plus fort. Mentir sur ses propres dégâts ne protège donc pas d'un flic. Côté physique, chacun calcule le choc avec la vraie masse de l'autre voiture et n'en applique que sa part : un choc pousse et ralentit comme en vrai, au lieu de faire glisser l'autre voiture comme un objet sur une table.
+- **Les objectifs et réparations** : le serveur vérifie avec les positions reçues que le fuyard est bien resté dans la zone, plafonne le butin, et soigne lui-même.
 - **Les positions** : une voiture qui va plus vite que possible (téléportation) est remise à sa dernière position valable. Si ça se répète, elle est expulsée automatiquement.
 - **Les arrestations** par un flic joueur sont calculées par le serveur à partir des positions.
 - **Les points** sont plafonnés par type d'événement, et les multiplicateurs vérifiés.
@@ -213,15 +229,16 @@ journalctl -u encavale -f     # journal (le terminal interactif n'est pas dispon
 
 ## 9. Développement
 
-Node.js 20 ou plus récent :
+Le serveur est écrit en **TypeScript**. Node.js 22.18 ou plus récent l'exécute directement (les types sont effacés au lancement, rien à compiler), et Bun aussi pour les exécutables.
 
 ```bash
 npm install
 npm start                 # serveur sur le port de config.json (7777)
-npm test                  # tests (protocole, chat, mot de passe, approbation, bannissement)
+npm run typecheck         # vérification des types (tsc)
+npm test                  # tests (protocole, chat, accès, admins Discord, objectifs, simulation)
 ```
 
-**Le jeu servi aux joueurs** est la copie compilée dans `public/`, et le **moteur de simulation** (carte, physique, IA de circulation et de police) est dans `sim/sim.js`. Les deux sont générés depuis le projet du jeu (dossier parent) par `npm run build:mp`. Il n'y a qu'une seule version du code de la physique et de l'IA, celle du jeu. Commite ensuite `public/` et `sim/`. Le protocole (`src/protocol.js`) est partagé avec le jeu : un changement incompatible doit monter `PROTOCOL`. Les joueurs d'une ancienne version sont alors priés de recharger la page.
+**Le jeu servi aux joueurs** est la copie compilée dans `public/`, et le **moteur de simulation** (carte, physique, IA de circulation et de police) est dans `sim/sim.js`. Les deux sont générés depuis le projet du jeu (dossier parent) par `npm run build:mp`. Il n'y a qu'une seule version du code de la physique et de l'IA, celle du jeu. Commite ensuite `public/` et `sim/`. Le protocole (`src/protocol.ts`) est partagé avec le jeu : un changement incompatible doit monter `PROTOCOL`. Les joueurs d'une ancienne version sont alors priés de recharger la page.
 
 **Exécutables** : `npm run build`, qui demande [Bun](https://bun.sh). Il intègre `public/` dans le binaire, puis compile pour Windows, macOS et Linux dans `dist/`.
 

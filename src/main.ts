@@ -5,14 +5,14 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
-import { loadConfig, saveConfig, Bans } from './store.js';
-import { GameServer } from './server.js';
-import { loadFiles, makeHandler } from './http.js';
-import { startConsole } from './console.js';
-import { PROTOCOL } from './protocol.js';
-import { log } from './log.js';
-import { Metrics } from './metrics.js';
-import { makePanel } from './panel.js';
+import { loadConfig, saveConfig, Bans } from './store.ts';
+import { GameServer } from './server.ts';
+import { loadFiles, makeHandler } from './http.ts';
+import { startConsole } from './console.ts';
+import { PROTOCOL } from './protocol.ts';
+import { log } from './log.ts';
+import { Metrics } from './metrics.ts';
+import { makePanel } from './panel.ts';
 import pkg from '../package.json' with { type: 'json' };
 
 export const VERSION = pkg.version;
@@ -23,7 +23,7 @@ const compiled = !/^(node|bun)(\.exe)?$/.test(exe);
 const dataDir = compiled ? path.dirname(process.execPath) : process.cwd();
 
 const args = process.argv.slice(2);
-const arg = (name) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : undefined; };
+const arg = (name: string): string | undefined => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : undefined; };
 const cfgFile = path.resolve(arg('config') || path.join(dataDir, 'config.json'));
 const cfg = loadConfig(cfgFile);
 const port = Number(arg('port')) || cfg.port;
@@ -41,19 +41,19 @@ try {
   srv.attachSim(sim);
   simInfo = `prêt (carte construite en ${sim.buildMs} ms)`;
 } catch (e) {
-  simInfo = `absent (${e.message.slice(0, 80)}) : circulation propre à chaque joueur`;
+  simInfo = `absent (${(e as Error).message.slice(0, 80)}) : circulation propre à chaque joueur`;
 }
 
 const metrics = new Metrics(srv);
 srv.metrics = metrics;
-const panel = makePanel(srv, metrics, { version: VERSION, protocol: PROTOCOL });
+const panel = makePanel(srv, metrics, { version: VERSION, protocol: PROTOCOL, port });
 const httpServer = http.createServer(makeHandler(files, srv, panel));
 const wss = new WebSocketServer({ server: httpServer, path: '/ws', maxPayload: 16 * 1024, perMessageDeflate: false });
 wss.on('connection', (ws, req) => srv.onConnection(ws, req));
 wss.on('error', () => {}); // déjà signalé par le serveur http (port occupé…)
 
-function banner() {
-  const ips = Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => i.address);
+function banner(): void {
+  const ips = Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => i!.address);
   log.plain('');
   log.plain(log.bold(`  EN CAVALE — serveur multijoueur v${VERSION} (protocole ${PROTOCOL})`));
   log.plain(`  Nom          : ${cfg.name}`);
@@ -62,7 +62,7 @@ function banner() {
   log.plain(`  Internet     : http://${log.yellow('TON-IP-PUBLIQUE')}:${port}  (ouvre/redirige le port ${port} TCP sur ta box ou ton VPS)`);
   log.plain(`  Mot de passe : ${cfg.password ? 'oui' : 'non'} · approbation des arrivées : ${cfg.joinApproval ? 'oui' : 'non'} · ${cfg.maxPlayers} joueurs max`);
   log.plain(`  Panneau web  : ${log.cyan(`http://localhost:${port}/admin`)}  mot de passe : ${log.yellow(cfg.panelPassword)}  ${log.dim(cfg.panelRemote ? '(accessible aussi depuis le réseau)' : '(seulement depuis ce PC)')}`);
-  log.plain(`  Administration : ce terminal (tape « aide ») ou le panneau web — aucun pouvoir admin en jeu.`);
+  log.plain(`  Admins en jeu : ${cfg.admins.length ? `${cfg.admins.length} compte(s) Discord` : 'aucun'} ${log.dim('(« admin <joueur> » pour en désigner un)')}`);
   log.plain(`  Jeu servi    : ${files.has('/index.html') ? source : log.yellow('ABSENT (dossier public/ vide)')}`);
   log.plain(`  Simulation   : ${simInfo}`);
   log.plain(log.dim(`  Config       : ${cfgFile}`));
@@ -71,7 +71,7 @@ function banner() {
 }
 
 let stopping = false;
-function shutdown() {
+function shutdown(): void {
   if (stopping) return;
   stopping = true;
   log.info('Arrêt du serveur…');
@@ -81,7 +81,7 @@ function shutdown() {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-httpServer.on('error', (e) => {
+httpServer.on('error', (e: NodeJS.ErrnoException) => {
   log.error(e.code === 'EADDRINUSE' ? `Le port ${port} est déjà utilisé : choisis-en un autre (--port 7778 ou config.json).` : e.message);
   process.exit(1);
 });

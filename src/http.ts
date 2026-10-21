@@ -3,22 +3,28 @@
 // (http://IP:port), ce qui évite le blocage « contenu mixte » d'une page https vers ws://.
 import fs from 'node:fs';
 import path from 'node:path';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { GameServer } from './server.ts';
 
-const TYPES = {
+export type Files = Map<string, Buffer>;
+export type PanelHandler = (req: IncomingMessage, res: ServerResponse, url: URL) => Promise<boolean>;
+
+const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
 };
 
 /** Charge les fichiers du jeu : bundle intégré (exécutable) sinon dossier public/ */
-export async function loadFiles(publicDir) {
-  const files = new Map();
+export async function loadFiles(publicDir: string): Promise<{ files: Files; source: string }> {
+  const files: Files = new Map();
   try {
-    const mod = await import('./public-bundle.js');
+    // @ts-ignore : fichier généré seulement pour les exécutables (scripts/embed-public.ts)
+    const mod: { FILES: Record<string, string> } = await import('./public-bundle.js');
     for (const [k, v] of Object.entries(mod.FILES)) files.set(k, Buffer.from(v, 'base64'));
     if (files.size) return { files, source: 'intégré' };
   } catch { /* pas de bundle : mode développement */ }
-  const walk = (dir, base = '') => {
+  const walk = (dir: string, base = ''): void => {
     for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
       if (f.name.startsWith('.')) continue;
       const rel = `${base}/${f.name}`;
@@ -30,7 +36,7 @@ export async function loadFiles(publicDir) {
   return { files, source: publicDir };
 }
 
-export function makeHandler(files, server, panel = null) {
+export function makeHandler(files: Files, server: GameServer, panel: PanelHandler | null = null) {
   // page d'accueil : on signale au jeu qu'il tourne sur un serveur multijoueur
   const rawIndex = files.get('/index.html');
   const index = () => {
@@ -38,12 +44,12 @@ export function makeHandler(files, server, panel = null) {
     const data = JSON.stringify({ name: server.cfg.name }).replace(/</g, '\\u003c');
     return Buffer.from(rawIndex.toString('utf8').replace('<head>', `<head>\n  <script>window.__CAVALE_MP__ = ${data};</script>`));
   };
-  return async (req, res) => {
-    const url = new URL(req.url, 'http://x');
+  return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    const url = new URL(req.url || '/', 'http://x');
     if (panel && url.pathname.startsWith('/admin')) {
       try { if (await panel(req, res, url)) return; } catch { if (!res.headersSent) { res.writeHead(500); res.end(); } return; }
     }
-    const send = (code, type, body, extra = {}) => {
+    const send = (code: number, type: string, body: string | Buffer, extra: Record<string, string> = {}): void => {
       res.writeHead(code, {
         'Content-Type': type, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY',
         'Referrer-Policy': 'no-referrer', ...extra,

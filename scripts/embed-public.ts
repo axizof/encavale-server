@@ -4,8 +4,8 @@ import path from 'node:path';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const pub = path.join(root, 'public');
-const files = {};
-const walk = (dir, base = '') => {
+const files: Record<string, string> = {};
+const walk = (dir: string, base = ''): void => {
   for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
     if (f.name.startsWith('.')) continue;
     const rel = `${base}/${f.name}`;
@@ -18,5 +18,5 @@ if (!fs.existsSync(path.join(pub, 'index.html'))) {
   process.exit(1);
 }
 walk(pub);
-fs.writeFileSync(path.join(root, 'src', 'public-bundle.js'), `// Généré par scripts/embed-public.js — ne pas modifier\nexport const FILES = ${JSON.stringify(files)};\n`);
+fs.writeFileSync(path.join(root, 'src', 'public-bundle.js'), `// Généré par scripts/embed-public.ts — ne pas modifier\nexport const FILES = ${JSON.stringify(files)};\n`);
 console.log(`${Object.keys(files).length} fichiers intégrés (${Math.round(JSON.stringify(files).length / 1024)} Ko)`);
