@@ -716,7 +716,8 @@ export class GameServer {
       bots: r.bots, spikes: r.spikes, weather: this.settings.weather, tod: this.settings.tod, policeSim: r.policeSim, traffic: r.traffic,
       deadToCop: this.settings.deadToCop, objs: r.objs,
       fugitives: r.fugitives, cops: r.cops, order: r.order,
-      roster: [...this.players.values()].filter((p) => p.inRound).map((p) => ({ id: p.id, n: p.name, role: p.role, kind: p.kind, col: p.color })),
+      // cu : personnalisation de la voiture (comptes Discord, garage du site), seulement pour les fuyards
+      roster: [...this.players.values()].filter((p) => p.inRound).map((p) => ({ id: p.id, n: p.name, role: p.role, kind: p.kind, col: p.color, cu: p.role === 'fugitive' ? p.discord?.custom ?? null : null })),
     };
   }
 

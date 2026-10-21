@@ -13,6 +13,7 @@ Le serveur multijoueur du jeu **En Cavale**, à héberger soi-même, comme un se
 - **Objectifs gérés par le serveur** : chaque fuyard a son braquage et son receleur, les flics les voient sur la carte, et de temps en temps un **gros coup** commun (butin ×3) est raflé par le premier qui le braque. Les **réparations** sont communes, et leur nombre suit le nombre de fuyards encore en jeu.
 - **Mouvement fluide** des autres voitures : positions datées, interpolation en courbe pour les voitures lointaines, et pour les voitures proches une **prédiction avec la vraie physique** et les commandes de leur pilote (moins prédite si la connexion est irrégulière). **Chocs réalistes** entre joueurs : chacun garde sa masse.
 - **Mises à jour** : le serveur prévient l'hôte quand une nouvelle version est publiée.
+- **Voitures personnalisées** (garage du site) : couleur, covering et jantes d'un joueur Discord voyagent dans son ticket signé ; tout le monde les voit. Les invités ont la voiture de base.
 - **Spectateur** : ◀ ▶ ou clic sur un pseudo pour suivre qui on veut. **Option** : un fuyard éliminé peut rejoindre la police.
 
 ## Sommaire

@@ -6,7 +6,19 @@ import crypto from 'node:crypto';
 
 export const TICKET_PUBLIC_KEY = 'iy/sR+Wid42C39Ch+VAapWmfoAHbEygTHjTNIi75h08=';
 
-export interface DiscordIdentity { id: string; name: string; avatar: string | null }
+// personnalisation de la voiture (garage du site) : couleur, covering, jantes — identifiants seulement
+export interface CarCustom { c: string; w: string | null; r: string }
+export interface DiscordIdentity { id: string; name: string; avatar: string | null; custom: CarCustom | null }
+
+const CUSTOM_ID = /^[a-z]{2,16}$/;
+function cleanCustom(v: unknown): CarCustom | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const c = typeof o.c === 'string' && CUSTOM_ID.test(o.c) ? o.c : 'rouge';
+  const w = typeof o.w === 'string' && CUSTOM_ID.test(o.w) ? o.w : null;
+  const r = typeof o.r === 'string' && CUSTOM_ID.test(o.r) ? o.r : 'base';
+  return { c, w, r };
+}
 
 let keyObj: { b64: string; key: crypto.KeyObject } | null = null;
 function publicKey(b64: string): crypto.KeyObject {
@@ -40,6 +52,7 @@ export function verifyTicket(ticket: unknown, hosts: string[], pubB64: string = 
       id: d.did,
       name: String(d.name || 'Joueur').slice(0, 64),
       avatar: typeof d.av === 'string' && /^[a-z0-9_]{1,40}$/i.test(d.av) ? d.av : null,
+      custom: cleanCustom(d.cu),
     };
   } catch {
     return null;
