@@ -17,7 +17,7 @@ import type { WebSocket, RawData } from 'ws';
 import {
   PROTOCOL, KIND, COP_CARS, F, botId, MAX_BOTS_PER_PLAYER, MSG_SNAPSHOT, MSG_STATE,
   FUGITIVE_COLORS, PRESETS, copCountFor, allowedCopCars, SPIKES, SPIKE_TTL, COP_RESPAWN, HP, ARMOR,
-  impactDamage, encodeEntities, decodeEntities, botTuning, MULTS, multFor,
+  impactDamage, encodeEntities, decodeEntities, botTuning, MULTS, multFor, SEND_HZ,
 } from './protocol.ts';
 import type { Entity, PlayerKind, CopCar, BotsLevel, SpikesLevel } from './protocol.ts';
 import { normalizeSettings, mergeSettings } from './settings.ts';
@@ -33,7 +33,7 @@ import { log } from './log.ts';
 import type { ServerSim, SimEvent } from '../sim/sim.js';
 import type { Metrics } from './metrics.ts';
 
-const TICK_HZ = 15;
+const TICK_HZ = SEND_HZ; // les joueurs à chaque tour, le reste (police IA, circulation) un tour sur deux
 const MAX_SPEED = 115; // m/s entre deux positions (vitesse de pointe ≈ 80 m/s + glisse / chocs)
 const AOI = 950; // portée d'envoi des voitures de police IA des autres
 const RESULTS_TIME = 14;
@@ -178,6 +178,7 @@ export class GameServer {
   bytesIn = 0;
   obj: Objectives | null = null;
   metrics: Metrics | null = null;
+  update: { latest: string; url: string } | null = null; // nouvelle version publiée (voir update.ts)
   pairEv = new Map<string, { t: number; d: Record<number, number> }>();
 
   constructor(cfg: Config, { bans, saveConfig }: { bans: Bans; saveConfig: () => void }) {
@@ -249,7 +250,7 @@ export class GameServer {
     const conn: Conn = {
       ws, ip, host: String(req.headers.host || '').toLowerCase().slice(0, 120), player: null, pendingReq: null,
       bucket: new Bucket(80, 160), // messages texte
-      binBucket: new Bucket(40, 80), // positions
+      binBucket: new Bucket(70, 140), // positions (30 par seconde)
       closed: false, over: 0,
     };
     this.conns.add(conn);
@@ -1116,7 +1117,11 @@ export class GameServer {
     for (const [k, ev] of this.pairEv) if (now - ev.t > 2) this.pairEv.delete(k);
   }
 
+  snapN = 0;
+
   snapshot(now: number): void {
+    // un tour sur deux : seulement les voitures des joueurs (celles qu'on percute et qui doivent être précises)
+    const full = this.snapN++ % 2 === 0;
     type Out = Entity & { owner: number };
     const ents: Out[] = [];
     for (const p of this.players.values()) {
@@ -1130,7 +1135,7 @@ export class GameServer {
         ...s, id: p.id, kind: KIND[p.kind], hp: Math.round(p.hp), age,
         flags: (s.flags & ~F.destroyed) | (p.alive ? 0 : F.destroyed), owner: 0,
       });
-      if (p.alive && p.bots.length && now - p.botsT < 1.5) for (const b of p.bots) ents.push({ ...b, id: botId(p.id, b.id), owner: p.id, age });
+      if (full && p.alive && p.bots.length && now - p.botsT < 1.5) for (const b of p.bots) ents.push({ ...b, id: botId(p.id, b.id), owner: p.id, age });
     }
     const simAge = Math.max(0, now - this.simAt);
     for (const r of this.players.values()) {
@@ -1147,7 +1152,7 @@ export class GameServer {
       bots.sort((a, b) => a[0] - b[0]);
       for (const [, e] of bots.slice(0, 48)) list.push(e);
       // circulation et police du serveur (ses propres polices IA aussi : c'est le serveur qui les fait rouler)
-      if (this.sim && this.sim.active && view) for (const e of this.sim.entities(view)) if (list.length < 250) { e.age = simAge; list.push(e); }
+      if (full && this.sim && this.sim.active && view) for (const e of this.sim.entities(view)) if (list.length < 250) { e.age = simAge; list.push(e); }
       this.sendBin(r.conn, encodeEntities(MSG_SNAPSHOT, now, list));
     }
   }

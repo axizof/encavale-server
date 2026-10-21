@@ -16,6 +16,8 @@ export interface Config {
   panelPassword: string;
   panelRemote: boolean;
   admins: string[]; // identifiants Discord des admins en jeu
+  updateCheck: boolean; // prévenir quand une nouvelle version du serveur est publiée
+  updateNotice?: string; // dernière version pour laquelle la page de téléchargement a été ouverte
   salt: string;
   settings: Partial<Settings> | null;
   ticketPublicKey?: string;
@@ -31,6 +33,7 @@ const DEFAULTS = {
   publicHost: [] as string[],
   panelRemote: false,
   admins: [] as string[],
+  updateCheck: true,
   settings: null,
 };
 
@@ -43,6 +46,7 @@ const COMMENT = {
     'joinApproval : true = chaque arrivée doit être acceptée par l\'hôte ou un admin',
     'panelPassword : mot de passe du panneau admin web (http://localhost:port/admin)',
     'panelRemote : false = panneau utilisable seulement depuis le PC du serveur ; true = aussi depuis le réseau (mot de passe en clair en http)',
+    'updateCheck : true = au démarrage, prévient (et ouvre la page de téléchargement) si une nouvelle version du serveur existe',
     'admins : identifiants Discord des joueurs qui ont les commandes en jeu (commande « admin <joueur> » ou panneau web)',
     'publicHost : adresses par lesquelles les joueurs te rejoignent (ex. "mon-serveur.fr:7777"), seulement si tu es derrière un proxy',
   ],
@@ -72,11 +76,13 @@ export function loadConfig(file: string): Config {
     panelPassword: typeof merged.panelPassword === 'string' && merged.panelPassword ? merged.panelPassword : crypto.randomBytes(9).toString('base64url'),
     panelRemote: merged.panelRemote === true,
     admins: Array.isArray(merged.admins) ? [...new Set(merged.admins.map(String).filter((s) => DISCORD_ID_RE.test(s)))] : [],
+    updateCheck: merged.updateCheck !== false,
     // sert à anonymiser l'identité des joueurs
     salt: typeof merged.salt === 'string' && merged.salt ? merged.salt : crypto.randomBytes(12).toString('hex'),
     settings: merged.settings && typeof merged.settings === 'object' ? merged.settings as Partial<Settings> : null,
   };
   if (typeof merged.ticketPublicKey === 'string' && merged.ticketPublicKey) cfg.ticketPublicKey = merged.ticketPublicKey;
+  if (typeof merged.updateNotice === 'string') cfg.updateNotice = merged.updateNotice;
   saveConfig(file, cfg);
   if (created) log.info(`config.json créé (${file}) : modifie-le puis relance le serveur si besoin.`);
   return cfg;

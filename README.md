@@ -11,7 +11,8 @@ Le serveur multijoueur du jeu **En Cavale**, à héberger soi-même, comme un se
 - **Police IA** au choix de l'hôte : calculée par le joueur poursuivi (réactive) ou par le serveur (anti-triche).
 - **Panneau admin web** protégé par mot de passe, accessible seulement depuis le PC du serveur par défaut : réglages de la partie, manches, demandes d'entrée, joueurs, statistiques avec historique, journal.
 - **Objectifs gérés par le serveur** : chaque fuyard a son braquage et son receleur, les flics les voient sur la carte, et de temps en temps un **gros coup** commun (butin ×3) est raflé par le premier qui le braque. Les **réparations** sont communes, et leur nombre suit le nombre de fuyards encore en jeu.
-- **Mouvement fluide** des autres voitures (positions datées, interpolation en courbe) et **chocs réalistes** entre joueurs : chacun garde sa masse.
+- **Mouvement fluide** des autres voitures : positions datées, interpolation en courbe pour les voitures lointaines, et pour les voitures proches une **prédiction avec la vraie physique** et les commandes de leur pilote (moins prédite si la connexion est irrégulière). **Chocs réalistes** entre joueurs : chacun garde sa masse.
+- **Mises à jour** : le serveur prévient l'hôte quand une nouvelle version est publiée.
 - **Spectateur** : ◀ ▶ ou clic sur un pseudo pour suivre qui on veut. **Option** : un fuyard éliminé peut rejoindre la police.
 
 ## Sommaire
@@ -83,6 +84,7 @@ Le serveur **sert le jeu lui-même**. Les joueurs n'ont rien à installer : la p
 | `motd` | message de bienvenue | Message affiché à l'arrivée. |
 | `panelPassword` | aléatoire | Mot de passe du **panneau admin web** (`http://localhost:port/admin`). Il s'affiche au démarrage. |
 | `panelRemote` | `false` | `false` : le panneau ne répond qu'au PC du serveur. `true` : aussi depuis le réseau (le mot de passe passe alors en clair, voir plus bas). |
+| `updateCheck` | `true` | Au démarrage (puis toutes les 6 h), vérifie si une nouvelle version du serveur est publiée : gros message dans le terminal, bandeau dans le panneau, et la page de téléchargement s'ouvre une fois par nouvelle version (sur un PC avec écran). Ne bloque jamais. |
 | `admins` | `[]` | Identifiants Discord des **admins en jeu** (rempli par la commande `admin <joueur>` ou le panneau). |
 | `publicHost` | `[]` | Seulement derrière un reverse proxy : adresses publiques du serveur, pour accepter les tickets Discord. |
 | `settings` | — | Derniers réglages de partie (mis à jour par le serveur). |
@@ -131,6 +133,7 @@ set bots normal          bots (off|normal|renforce), herses (off|rare|normal|bea
 kick <joueur> [raison]   ban <joueur> [raison]   bans   unban <n°|nom>
 admin <joueur>           donner / retirer les commandes en jeu (compte Discord)
 admins                   liste ; admin+ <id Discord> / admin- <id Discord>
+maj                      ouvrir la page de téléchargement de la dernière version
 muet <joueur>            role <joueur> <any|fugitive|cop|spectate>   dire <message>
 accepter <n°> / refuser <n°>     approbation on|off     motdepasse <mdp|off>
 stats                    processeur, mémoire, réseau, voitures (moyennes 1 min / 1 h)

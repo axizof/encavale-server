@@ -87,7 +87,7 @@ test('mauvais mot de passe : refusé', async () => {
 });
 
 test('ancienne version du jeu : refusée', async () => {
-  const c = connect({ name: 'Ancien', pass: 'secret', v: 2 });
+  const c = connect({ name: 'Ancien', pass: 'secret', v: PROTOCOL - 1 });
   const k = await c.wait((m) => m.t === 'kick');
   assert.match(k.why, /version/);
 });

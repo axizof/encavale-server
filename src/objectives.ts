@@ -191,9 +191,8 @@ export class Objectives {
     }
     const target = pickupTarget(fugs.length);
     if (this.pickups.size < target && now >= this.pickNext) {
-      if (this.spawnPickup(fugs, now)) changed = true;
-      // plus il y a de fuyards, plus elles reviennent vite (une pour deux fuyards)
-      this.pickNext = now + 70 / Math.max(1, target);
+      // plus il y a de fuyards, plus elles reviennent vite (une pour deux fuyards) ; pas de place : on réessaie vite
+      if (this.spawnPickup(fugs, now)) { changed = true; this.pickNext = now + 70 / Math.max(1, target); } else this.pickNext = now + 5;
     }
     if (changed) this.dirty = true;
   }

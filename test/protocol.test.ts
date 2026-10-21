@@ -6,23 +6,26 @@ import { cleanText, cleanName, ChatGuard } from '../src/text.ts';
 import { normalizeSettings, mergeSettings } from '../src/settings.ts';
 
 test('positions : encodage / décodage (avec l\'âge de la mesure)', () => {
-  const e: Entity = { id: 3, kind: 2, flags: 5, x: 123.25, z: -456.5, y: 7.75, h: 2.5, vx: 31.2, vz: -12.34, steer: -0.5, hp: 87, extra: 4, age: 0.083 };
+  const e: Entity = { id: 3, kind: 2, flags: 5, x: 123.25, z: -456.5, y: 7.75, h: 2.5, vx: 31.2, vz: -12.34, steer: -0.5, hp: 87, extra: 4, age: 0.083, thr: 0.8, brk: 0.2, av: -1.3 };
   const d = decodeEntities(encodeEntities(MSG_STATE, 12.5, [e]));
   assert.ok(d);
   assert.equal(d.type, MSG_STATE);
   assert.equal(d.time, 12.5);
+  // heure précise même après des jours de serveur allumé
+  assert.equal(decodeEntities(encodeEntities(MSG_STATE, 864000.123, [e]))!.time, 864000.123);
   assert.equal(d.list.length, 1);
   const r = d.list[0];
   assert.equal(r.id, 3); assert.equal(r.kind, 2); assert.equal(r.flags, 5); assert.equal(r.hp, 87); assert.equal(r.extra, 4);
   assert.ok(Math.abs(r.x - e.x) < 1e-3 && Math.abs(r.z - e.z) < 1e-3);
   assert.ok(Math.abs(r.h - e.h) < 1e-3 && Math.abs(r.vx - e.vx) < 0.01 && Math.abs(r.steer - e.steer) < 0.01);
   assert.ok(Math.abs((r.age ?? 0) - 0.084) < 0.003, `âge ${r.age}`);
+  assert.ok(Math.abs((r.thr ?? 0) - 0.8) < 0.04 && Math.abs((r.brk ?? 0) - 0.2) < 0.04 && Math.abs((r.av ?? 0) + 1.3) < 0.03);
 });
 
 test('positions : messages mal formés refusés', () => {
-  assert.equal(decodeEntities(new Uint8Array([2, 3, 0, 0, 0, 0])), null); // annonce 3 voitures, n'en contient aucune
+  assert.equal(decodeEntities(new Uint8Array([2, 3, 0, 0, 0, 0, 0, 0, 0, 0])), null); // annonce 3 voitures, n'en contient aucune
   const ok = encodeEntities(MSG_STATE, 0, [{ id: 1, kind: 0, flags: 0, x: 0, z: 0, y: 0, h: 0, vx: 0, vz: 0, steer: 0, hp: 1, extra: 0 }]);
-  new DataView(ok.buffer).setFloat32(6 + 4, NaN, true);
+  new DataView(ok.buffer).setFloat32(10 + 4, NaN, true);
   assert.equal(decodeEntities(ok), null);
 });
 

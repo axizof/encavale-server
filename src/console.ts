@@ -4,7 +4,7 @@ import { PRESETS } from './protocol.ts';
 import { log } from './log.ts';
 import type { GameServer } from './server.ts';
 
-export interface ConsoleExtra { banner: () => void; shutdown: () => void; save: () => void }
+export interface ConsoleExtra { banner: () => void; shutdown: () => void; save: () => void; update: () => void }
 
 const HELP = `
 Commandes (l'administration se fait ici, dans le panneau web, ou en jeu par les admins Discord) :
@@ -30,6 +30,7 @@ Commandes (l'administration se fait ici, dans le panneau web, ou en jeu par les 
   stats                    processeur, mémoire, réseau, voitures (moyennes 1 min et 1 h)
   panneau [mdp]            afficher / changer le mot de passe du panneau web (/admin)
   infos                    adresse et réglages
+  maj                      ouvrir la page de téléchargement de la dernière version
   quitter                  arrêter le serveur
 `;
 
@@ -116,6 +117,7 @@ function run(srv: GameServer, line: string, extra: ConsoleExtra): void {
       log.info(srv.cfg.password ? 'Mot de passe changé.' : 'Serveur sans mot de passe.');
       break;
     case 'infos': case 'info': extra.banner(); break;
+    case 'maj': case 'update': extra.update(); break;
     case 'stats': {
       const m = srv.metrics;
       const n = m?.last(), avg1 = m?.avg(60), avg60 = m?.avg(3600);

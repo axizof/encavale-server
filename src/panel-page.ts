@@ -73,6 +73,8 @@ canvas { width:100%; height:84px; display:block; margin-top:6px }
 .toggle { display:inline-flex; align-items:center; gap:8px; cursor:pointer } .toggle input { width:auto }
 #log { height:260px; overflow:auto; font:12px/1.5 ui-monospace,Menlo,Consolas,monospace; color:#cfd6e2; background:#080a0e; padding:10px; border-radius:8px; white-space:pre-wrap; border:1px solid var(--line) }
 #login { max-width:380px; margin:12vh auto } #login input { width:100%; margin:10px 0 }
+.upd { background:rgba(255,138,61,.12); border:1px solid rgba(255,138,61,.55); color:#ffd2b3; border-radius:12px; padding:12px 16px; font-size:14px }
+.upd b { color:#fff } .upd a { color:#ffb37a; font-weight:700 }
 #toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#2a1218; border:1px solid rgba(255,59,71,.5); color:#ffd0d3; padding:9px 16px; border-radius:9px; font-size:13.5px; display:none; z-index:9 }
 </style></head><body>
 <div id="login" class="card" hidden>
@@ -89,6 +91,7 @@ canvas { width:100%; height:84px; display:block; margin-top:6px }
   <div class="row"><span id="hdrPhase" class="chip"></span><button id="out" class="sm">Déconnexion</button></div>
 </header>
 <main>
+  <div id="upd" class="upd" hidden></div>
   <section class="card">
     <div class="hd"><h2>Surveillance</h2><span class="sp"></span><span class="muted" style="font-size:12.5px">Historique</span>
       <div class="seg"><button data-r="5m" class="on">5 min</button><button data-r="1h">1 h</button><button data-r="24h">24 h</button></div></div>
@@ -327,6 +330,12 @@ async function refreshStats() {
   const n = st.now || {}, a = st.avg || {}, H = st.history, S = st.server;
   $('title').firstChild.textContent = S.name;
   $('sub').textContent = 'v' + S.version + ' · port ' + S.port + ' · en ligne depuis ' + fmtDur(S.uptime);
+  const up = $('upd'); up.hidden = !S.update;
+  if (S.update && up.dataset.v !== S.update.latest) {
+    up.dataset.v = S.update.latest; up.replaceChildren();
+    const a = el('a', null, 'Télécharger la v' + S.update.latest); a.href = S.update.url; a.target = '_blank'; a.rel = 'noopener';
+    up.append(el('b', null, '⚠ Nouvelle version du serveur disponible. '), 'Ce serveur est en v' + S.version + '. Mets-le à jour pour éviter les problèmes (garde ton config.json) : ', a);
+  }
   $('cpu').innerHTML = (n.cpu ?? 0) + ' % <small>d’un cœur · moy. ' + (a.cpu ?? 0) + ' %</small>';
   $('mem').innerHTML = (n.rss ?? 0) + ' Mo <small>dont ' + (n.heap ?? 0) + ' Mo JS</small>';
   $('tick').innerHTML = (n.sim ?? 0) + ' ms <small>simu · boucle ' + (n.tick ?? 0) + ' ms</small>';

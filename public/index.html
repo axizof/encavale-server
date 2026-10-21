@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Russo+One&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="./assets/index-eO74oiCr.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-9TFjPwKZ.css">
+  <script type="module" crossorigin src="./assets/index-B_yBvO_K.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-CJsDnpXj.css">
 </head>
 <body>
   <div id="gl"></div>
@@ -99,6 +99,7 @@
           <button id="btnMulti">MULTIJOUEUR</button>
           <button id="btnFreecam">EXPLORER LA CARTE</button>
           <button id="btnControls">COMMANDES</button>
+          <button id="btnDevlog">NOUVEAUTÉS <span id="devlogNew" class="newBadge hidden">NOUVEAU</span></button>
           <div id="best"></div>
         </div>
         <div class="menuOpts">
@@ -139,7 +140,17 @@
           <div id="account"></div>
         </div>
       </div>
+      <button id="appVersion" class="appVersion" title="Voir les nouveautés"></button>
       <div class="menuFoot">Braque, file chez le receleur avant la fin du chrono, encaisse, recommence. La police ne lâche rien : jusqu'à 6 étoiles. Sans fin — jusqu'à ce qu'on t'arrête.</div>
+    </div>
+  </div>
+
+  <!-- Nouveautés -->
+  <div id="devlog" class="screen hidden">
+    <div class="panel devlogPanel">
+      <h2>NOUVEAUTÉS <small id="devlogVer"></small></h2>
+      <div id="devlogList"></div>
+      <button id="btnCloseDevlog" class="big">RETOUR</button>
     </div>
   </div>
 

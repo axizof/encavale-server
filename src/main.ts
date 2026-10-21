@@ -13,6 +13,7 @@ import { PROTOCOL } from './protocol.ts';
 import { log } from './log.ts';
 import { Metrics } from './metrics.ts';
 import { makePanel } from './panel.ts';
+import { checkUpdate, openBrowser } from './update.ts';
 import pkg from '../package.json' with { type: 'json' };
 
 export const VERSION = pkg.version;
@@ -85,7 +86,32 @@ httpServer.on('error', (e: NodeJS.ErrnoException) => {
   log.error(e.code === 'EADDRINUSE' ? `Le port ${port} est déjà utilisé : choisis-en un autre (--port 7778 ou config.json).` : e.message);
   process.exit(1);
 });
+// nouvelle version publiée ? gros avertissement (sans bloquer), et la page de téléchargement s'ouvre
+// une fois par nouvelle version sur un PC avec écran
+async function updateCheck(first: boolean): Promise<void> {
+  if (!cfg.updateCheck) return;
+  const u = await checkUpdate(VERSION);
+  srv.update = u;
+  if (!u) return;
+  // cadre ouvert à droite : reste aligné quelle que soit la largeur du terminal
+  const bar = '━'.repeat(72);
+  log.warn(`  ┏${bar}`);
+  log.warn(`  ┃  ⚠  NOUVELLE VERSION DU SERVEUR DISPONIBLE : v${u.latest}   (ce serveur : v${VERSION})`);
+  log.warn('  ┃  Mets à jour pour éviter les problèmes : avec le jeu le plus récent, les joueurs');
+  log.warn('  ┃  risquent de ne plus pouvoir rejoindre un ancien serveur.');
+  log.warn(`  ┃  Téléchargement : ${u.url}`);
+  log.warn('  ┃  Tape « maj » pour ouvrir la page. Remplace juste l\'exécutable : garde config.json.');
+  log.warn(`  ┗${bar}`);
+  if (first && process.stdin.isTTY && process.platform !== 'linux' && cfg.updateNotice !== u.latest) {
+    cfg.updateNotice = u.latest;
+    save();
+    openBrowser(u.url);
+  }
+}
+
 httpServer.listen(port, () => {
   banner();
-  startConsole(srv, { banner, shutdown, save });
+  startConsole(srv, { banner, shutdown, save, update: () => { if (srv.update) openBrowser(srv.update.url); else log.info(`Ce serveur est à jour (v${VERSION}).`); } });
+  void updateCheck(true);
+  setInterval(() => void updateCheck(false), 6 * 3600 * 1000).unref();
 });

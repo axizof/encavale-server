@@ -113,7 +113,7 @@ export function makePanel(srv: GameServer, metrics: Metrics, opts: { version: st
           server: {
             name: srv.cfg.name, version: opts.version, protocol: opts.protocol, uptime: metrics.uptime(), players: srv.players.size, max: srv.cfg.maxPlayers,
             phase: srv.phase, preset: srv.settings.preset, policeSim: srv.settings.policeSim, traffic: srv.settings.traffic, sim,
-            password: !!srv.cfg.password, approval: srv.cfg.joinApproval, pending: srv.pending.size, port: opts.port,
+            password: !!srv.cfg.password, approval: srv.cfg.joinApproval, pending: srv.pending.size, port: opts.port, update: srv.update,
           },
         });
         return true;

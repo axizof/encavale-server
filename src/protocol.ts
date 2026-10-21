@@ -1,10 +1,13 @@
 // Protocole En Cavale multijoueur — partagé par le serveur (Node / Bun) et le jeu (navigateur).
 // Messages texte : JSON { t: 'type', ...champs }. Positions des voitures : binaire compact
-// (26 octets par voiture), envoyé ~15 fois par seconde dans les deux sens.
+// (28 octets par voiture) : les joueurs ~30 fois par seconde, le reste ~15 fois.
 
 // 3 : âge de chaque position (interpolation fluide), objectifs et réparations gérés par le serveur,
 //     admins en jeu par compte Discord
-export const PROTOCOL = 3;
+// 4 : commandes (accélérateur, frein) et vitesse de rotation de chaque voiture : les voitures proches
+//     sont prédites avec la vraie physique ; joueurs envoyés 30 fois par seconde ; heure sur 64 bits
+//     (en 32 bits, elle perdait sa précision après quelques jours de serveur allumé)
+export const PROTOCOL = 4;
 
 // Types de voiture (octet « kind ») : 0-3 joueurs et police, 4-6 circulation civile
 export const KIND = { fugitive: 0, interceptor: 1, police: 2, suv: 3, sedan: 4, hatch: 5, van: 6 } as const;
@@ -28,7 +31,9 @@ export const isBot = (id: number): boolean => id >= 256 && id < TRAFFIC_BASE;
 export const isTraffic = (id: number): boolean => id >= TRAFFIC_BASE;
 
 export const MAX_BOTS_PER_PLAYER = 12;
-export const ENTITY_BYTES = 26;
+export const ENTITY_BYTES = 28;
+const HEADER = 10; // type, nombre de voitures, heure (float64)
+export const SEND_HZ = 30; // positions des joueurs (client -> serveur et serveur -> clients)
 export const MSG_SNAPSHOT = 1; // serveur -> clients
 export const MSG_STATE = 2; // client -> serveur
 export const AGE_UNIT = 0.004; // octet « âge » : par pas de 4 ms (jusqu'à ~1 s)
@@ -49,6 +54,9 @@ export interface Entity {
   hp: number;
   extra: number; // étoiles (joueur), couleur (civil)
   age?: number; // secondes écoulées entre la mesure et l'envoi
+  thr?: number; // accélérateur 0..1
+  brk?: number; // frein 0..1
+  av?: number; // vitesse de rotation (rad/s)
 }
 
 export interface EntityMsg {
@@ -62,12 +70,12 @@ const H_SCALE = 32767 / Math.PI;
 /** Encode une liste de voitures. */
 export function encodeEntities(type: number, time: number, list: Entity[]): Uint8Array {
   const n = Math.min(255, list.length);
-  const buf = new ArrayBuffer(6 + n * ENTITY_BYTES);
+  const buf = new ArrayBuffer(HEADER + n * ENTITY_BYTES);
   const dv = new DataView(buf);
   dv.setUint8(0, type);
   dv.setUint8(1, n);
-  dv.setFloat32(2, time, true);
-  let o = 6;
+  dv.setFloat64(2, time, true);
+  let o = HEADER;
   for (let i = 0; i < n; i++) {
     const e = list[i];
     let h = e.h % (2 * Math.PI);
@@ -85,6 +93,8 @@ export function encodeEntities(type: number, time: number, list: Entity[]): Uint
     dv.setUint8(o + 23, Math.max(0, Math.min(255, Math.round(e.hp || 0))));
     dv.setUint8(o + 24, (e.extra || 0) & 255);
     dv.setUint8(o + 25, Math.max(0, Math.min(255, Math.round((e.age || 0) / AGE_UNIT))));
+    dv.setUint8(o + 26, nib(e.thr) | (nib(e.brk) << 4));
+    dv.setInt8(o + 27, Math.max(-127, Math.min(127, Math.round((e.av || 0) * 40))));
     o += ENTITY_BYTES;
   }
   return new Uint8Array(buf);
@@ -92,14 +102,14 @@ export function encodeEntities(type: number, time: number, list: Entity[]): Uint
 
 /** Décode un message binaire. Retourne null s'il est mal formé. */
 export function decodeEntities(bytes: Uint8Array): EntityMsg | null {
-  if (!bytes || bytes.byteLength < 6) return null;
+  if (!bytes || bytes.byteLength < HEADER) return null;
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const type = dv.getUint8(0), n = dv.getUint8(1);
-  if (bytes.byteLength !== 6 + n * ENTITY_BYTES) return null;
-  const time = dv.getFloat32(2, true);
+  if (bytes.byteLength !== HEADER + n * ENTITY_BYTES) return null;
+  const time = dv.getFloat64(2, true);
   if (!Number.isFinite(time)) return null;
   const list: Entity[] = [];
-  let o = 6;
+  let o = HEADER;
   for (let i = 0; i < n; i++) {
     const e: Entity = {
       id: dv.getUint16(o, true),
@@ -115,6 +125,9 @@ export function decodeEntities(bytes: Uint8Array): EntityMsg | null {
       hp: dv.getUint8(o + 23),
       extra: dv.getUint8(o + 24),
       age: dv.getUint8(o + 25) * AGE_UNIT,
+      thr: (dv.getUint8(o + 26) & 15) / 15,
+      brk: (dv.getUint8(o + 26) >> 4) / 15,
+      av: dv.getInt8(o + 27) / 40,
     };
     o += ENTITY_BYTES;
     if (!Number.isFinite(e.x + e.z + e.y)) return null;
@@ -124,6 +137,7 @@ export function decodeEntities(bytes: Uint8Array): EntityMsg | null {
 }
 
 function clamp16(v: number): number { return Math.max(-32767, Math.min(32767, Math.round(v || 0))); }
+function nib(v: number | undefined): number { return Math.max(0, Math.min(15, Math.round((v || 0) * 15))); }
 
 // --- Règles de jeu partagées (le serveur fait foi, le client affiche) ---
 
