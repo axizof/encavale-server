@@ -10,13 +10,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Russo+One&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="./assets/index-DgzuZzLW.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-DMJvhZKe.css">
+  <script type="module" crossorigin src="./assets/index-DkWc-2XT.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-CdaIiY35.css">
 </head>
 <body>
   <div id="gl"></div>
 
   <!-- HUD -->
+  <!-- notification de succès (au-dessus de tout, même en fin de partie) -->
+  <div id="achToast"><div class="atIcon"></div><div><div class="atKick">SUCCÈS DÉBLOQUÉ</div><div class="atName"></div><div class="atDesc"></div></div></div>
+
   <div id="hud" class="hidden">
     <div id="topLeft">
       <div id="timer">00:00</div>
@@ -98,7 +101,10 @@
           <!-- accueil -->
           <div id="menuHome" class="menuBtns">
             <button id="btnPlayMenu" class="big">JOUER</button>
-            <button id="btnGarage">GARAGE</button>
+            <div class="menuPair">
+              <button id="btnGarage">GARAGE</button>
+              <button id="btnAch">SUCCÈS <span id="achCount" class="achCount"></span></button>
+            </div>
             <button id="btnFreecam">EXPLORER LA CARTE</button>
             <div class="menuPair">
               <button id="btnControls">COMMANDES</button>
@@ -187,6 +193,16 @@
       <h2>NOUVEAUTÉS <small id="devlogVer"></small></h2>
       <div id="devlogList"></div>
       <button id="btnCloseDevlog" class="big">RETOUR</button>
+    </div>
+  </div>
+
+  <!-- Succès -->
+  <div id="achievements" class="screen hidden">
+    <div class="panel devlogPanel achPanel">
+      <h2>SUCCÈS <small id="achTotal"></small></h2>
+      <div id="achWho" class="achWho"></div>
+      <div id="achList"></div>
+      <button id="btnCloseAch" class="big">RETOUR</button>
     </div>
   </div>
 
