@@ -12,7 +12,7 @@ export type PanelHandler = (req: IncomingMessage, res: ServerResponse, url: URL)
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
+  '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.mp3': 'audio/mpeg',
 };
 
 /** Charge les fichiers du jeu : bundle intégré (exécutable) sinon dossier public/ */
@@ -52,7 +52,7 @@ export function makeHandler(files: Files, server: GameServer, panel: PanelHandle
     const send = (code: number, type: string, body: string | Buffer, extra: Record<string, string> = {}): void => {
       res.writeHead(code, {
         'Content-Type': type, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY',
-        'Referrer-Policy': 'no-referrer', ...extra,
+        'Referrer-Policy': 'no-referrer', 'Content-Length': String(Buffer.byteLength(body)), ...extra,
       });
       res.end(req.method === 'HEAD' ? undefined : body);
     };
@@ -63,6 +63,16 @@ export function makeHandler(files: Files, server: GameServer, panel: PanelHandle
     const f = files.get(url.pathname);
     if (!f) return send(404, 'text/plain; charset=utf-8', 'Introuvable');
     const ext = path.extname(url.pathname).toLowerCase();
-    send(200, TYPES[ext] || 'application/octet-stream', f, { 'Cache-Control': url.pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache' });
+    const type = TYPES[ext] || 'application/octet-stream';
+    const cache = url.pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : ext === '.mp3' ? 'public, max-age=86400' : 'no-cache';
+    // lecture partielle (musique) : Safari ne lit pas un son sans « Range »
+    const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || ''));
+    if (range && (range[1] || range[2])) {
+      const start = range[1] ? Number(range[1]) : Math.max(0, f.length - Number(range[2]));
+      const end = range[1] && range[2] ? Math.min(Number(range[2]), f.length - 1) : f.length - 1;
+      if (start >= f.length || start > end) return send(416, 'text/plain', '', { 'Content-Range': `bytes */${f.length}` });
+      return send(206, type, f.subarray(start, end + 1), { 'Cache-Control': cache, 'Accept-Ranges': 'bytes', 'Content-Range': `bytes ${start}-${end}/${f.length}` });
+    }
+    send(200, type, f, { 'Cache-Control': cache, 'Accept-Ranges': 'bytes' });
   };
 }

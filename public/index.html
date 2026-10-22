@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Russo+One&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="./assets/index-EwSU2DPp.js"></script>
+  <script type="module" crossorigin src="./assets/index-CYsIwYRZ.js"></script>
   <link rel="stylesheet" crossorigin href="./assets/index-D_iMZyUX.css">
 </head>
 <body>
@@ -133,8 +133,12 @@
             </div>
           </div>
           <div class="opt">
-            <div class="optLbl">VOLUME</div>
+            <div class="optLbl">EFFETS SONORES</div>
             <input type="range" class="optVolume" min="0" max="100" value="80" />
+          </div>
+          <div class="opt">
+            <div class="optLbl">MUSIQUE</div>
+            <input type="range" class="optMusic" min="0" max="100" value="60" />
           </div>
           <div class="opt">
             <button id="btnOptions">PLUS D'OPTIONS GRAPHIQUES…</button>
@@ -264,9 +268,13 @@
         <div class="seg" data-opt="gps"><button data-v="on">Affiché</button><button data-v="off">Masqué</button></div>
         <div class="optHelp">Flèches posées sur la route vers l'objectif. Touche <kbd>G</kbd> en jeu.</div>
 
-        <div class="optLbl">VOLUME</div>
+        <div class="optLbl">EFFETS SONORES</div>
         <input type="range" class="optVolume" min="0" max="100" />
-        <div class="optHelp"></div>
+        <div class="optHelp">Moteur, sirènes, chocs… Touche <kbd>M</kbd> : couper tout le son.</div>
+
+        <div class="optLbl">MUSIQUE</div>
+        <input type="range" class="optMusic" min="0" max="100" />
+        <div class="optHelp">Tout à gauche : pas de musique.</div>
       </div>
       <p class="tips">Touche <kbd>)</kbd> ou <kbd>F3</kbd> en jeu : FPS et infos de performance.</p>
       <button id="btnCloseOptions" class="big">RETOUR</button>
