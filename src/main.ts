@@ -5,7 +5,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
-import { loadConfig, saveConfig, Bans } from './store.ts';
+import { loadConfig, saveConfig, Bans, MAP_NAMES } from './store.ts';
 import { GameServer } from './server.ts';
 import { loadFiles, makeHandler } from './http.ts';
 import { startConsole } from './console.ts';
@@ -38,7 +38,7 @@ const { files, source } = await loadFiles(path.join(path.dirname(new URL(import.
 let simInfo = 'absent (circulation propre à chaque joueur)';
 try {
   const { ServerSim } = await import('../sim/sim.js');
-  const sim = await ServerSim.create();
+  const sim = await ServerSim.create(cfg.map);
   srv.attachSim(sim);
   simInfo = `prêt (carte construite en ${sim.buildMs} ms)`;
 } catch (e) {
@@ -58,6 +58,7 @@ function banner(): void {
   log.plain('');
   log.plain(log.bold(`  EN CAVALE — serveur multijoueur v${VERSION} (protocole ${PROTOCOL})`));
   log.plain(`  Nom          : ${cfg.name}`);
+  log.plain(`  Carte        : ${MAP_NAMES[cfg.map] || cfg.map}`);
   log.plain(`  Sur ce PC    : ${log.cyan(`http://localhost:${port}`)}`);
   for (const ip of ips) log.plain(`  Réseau local : ${log.cyan(`http://${ip}:${port}`)}`);
   log.plain(`  Internet     : http://${log.yellow('TON-IP-PUBLIQUE')}:${port}  (ouvre/redirige le port ${port} TCP sur ta box ou ton VPS)`);

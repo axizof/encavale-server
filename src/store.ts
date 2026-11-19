@@ -12,6 +12,7 @@ export interface Config {
   maxPlayers: number;
   joinApproval: boolean;
   motd: string;
+  map: string; // carte du serveur (« encavale » ou « riviera »)
   publicHost: string[];
   panelPassword: string;
   panelRemote: boolean;
@@ -30,6 +31,7 @@ const DEFAULTS = {
   maxPlayers: 12,
   joinApproval: false,
   motd: 'Bienvenue ! Tape /aide dans le chat.',
+  map: 'encavale',
   publicHost: [] as string[],
   panelRemote: false,
   admins: [] as string[],
@@ -43,6 +45,7 @@ const COMMENT = {
     'port : port TCP (ouvrir / rediriger ce port sur la box ou le VPS)',
     'password : mot de passe pour rejoindre (vide = serveur ouvert)',
     'maxPlayers : 2 à 20',
+    'map : carte du serveur, « encavale » (la carte d\'origine) ou « riviera » (La Riviera) ; relancer le serveur après un changement',
     'joinApproval : true = chaque arrivée doit être acceptée par l\'hôte ou un admin',
     'panelPassword : mot de passe du panneau admin web (http://localhost:port/admin)',
     'panelRemote : false = panneau utilisable seulement depuis le PC du serveur ; true = aussi depuis le réseau (mot de passe en clair en http)',
@@ -51,6 +54,10 @@ const COMMENT = {
     'publicHost : adresses par lesquelles les joueurs te rejoignent (ex. "mon-serveur.fr:7777"), seulement si tu es derrière un proxy',
   ],
 };
+
+/** Cartes du jeu (src/world/maps.js du jeu) */
+export const MAPS = ['encavale', 'riviera'];
+export const MAP_NAMES: Record<string, string> = { encavale: 'En Cavale', riviera: 'La Riviera' };
 
 /** Identifiant Discord : 17 à 20 chiffres en pratique (on accepte 5 à 25 comme le ticket) */
 export const DISCORD_ID_RE = /^\d{5,25}$/;
@@ -71,6 +78,7 @@ export function loadConfig(file: string): Config {
     maxPlayers: Math.max(2, Math.min(20, Math.floor(Number(merged.maxPlayers) || 12))),
     joinApproval: merged.joinApproval === true,
     motd: String(merged.motd || '').slice(0, 200),
+    map: MAPS.includes(String(merged.map)) ? String(merged.map) : 'encavale',
     publicHost: Array.isArray(merged.publicHost) ? merged.publicHost.map(String) : merged.publicHost ? [String(merged.publicHost)] : [],
     // panneau admin web
     panelPassword: typeof merged.panelPassword === 'string' && merged.panelPassword ? merged.panelPassword : crypto.randomBytes(9).toString('base64url'),

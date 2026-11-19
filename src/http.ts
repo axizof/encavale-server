@@ -41,7 +41,7 @@ export function makeHandler(files: Files, server: GameServer, panel: PanelHandle
   const rawIndex = files.get('/index.html');
   const index = () => {
     if (!rawIndex) return Buffer.from('<h1>Jeu absent</h1><p>Le dossier public/ est vide : lance « npm run build:mp » dans le projet du jeu.</p>');
-    const data = JSON.stringify({ name: server.cfg.name }).replace(/</g, '\\u003c');
+    const data = JSON.stringify({ name: server.cfg.name, map: server.cfg.map }).replace(/</g, '\\u003c');
     return Buffer.from(rawIndex.toString('utf8').replace('<head>', `<head>\n  <script>window.__CAVALE_MP__ = ${data};</script>`));
   };
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {

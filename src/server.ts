@@ -1162,7 +1162,7 @@ export class GameServer {
 
   info(): Msg {
     return {
-      name: this.cfg.name, motd: this.cfg.motd, players: this.players.size, max: this.cfg.maxPlayers,
+      name: this.cfg.name, motd: this.cfg.motd, map: this.cfg.map, players: this.players.size, max: this.cfg.maxPlayers,
       password: !!this.cfg.password, approval: this.cfg.joinApproval, protocol: PROTOCOL, phase: this.phase,
       preset: PRESETS[this.settings.preset].label,
     };

@@ -23,7 +23,8 @@ export interface Squad { wanted: Wanted }
 export interface PlayerState { x: number; z: number; y: number; h: number; vx: number; vz: number; flags: number }
 
 export declare class ServerSim {
-  static create(): Promise<ServerSim>;
+  /** mapId : carte à construire (« encavale » par défaut, « riviera ») */
+  static create(mapId?: string): Promise<ServerSim>;
   buildMs: number;
   active: boolean;
   startRound(o: { traffic: string; policeServer: boolean; tuning: BotTuning | null }): void;
