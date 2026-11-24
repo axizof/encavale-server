@@ -83,6 +83,7 @@ Le serveur **sert le jeu lui-même**. Les joueurs n'ont rien à installer : la p
 | `maxPlayers` | `12` | De 2 à 20. |
 | `joinApproval` | `false` | `true` : chaque arrivée doit être acceptée par l'hôte (dans le terminal : `accepter n°`, ou dans le panneau web). |
 | `motd` | message de bienvenue | Message affiché à l'arrivée. |
+| `map` | `encavale` | Carte du serveur : `encavale` (la carte d'origine) ou `riviera` (La Riviera, deux fois plus grande). Relancer le serveur après un changement. |
 | `panelPassword` | aléatoire | Mot de passe du **panneau admin web** (`http://localhost:port/admin`). Il s'affiche au démarrage. |
 | `panelRemote` | `false` | `false` : le panneau ne répond qu'au PC du serveur. `true` : aussi depuis le réseau (le mot de passe passe alors en clair, voir plus bas). |
 | `updateCheck` | `true` | Au démarrage (puis toutes les 6 h), vérifie si une nouvelle version du serveur est publiée : gros message dans le terminal, bandeau dans le panneau, et la page de téléchargement s'ouvre une fois par nouvelle version (sur un PC avec écran). Ne bloque jamais. |

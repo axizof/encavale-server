@@ -808,7 +808,7 @@ export class GameServer {
     const [me, ...bots] = d.list;
     // voiture du joueur
     if (me.kind !== KIND[p.kind]) return;
-    if (Math.abs(me.x) > 1600 || Math.abs(me.z) > 1600 || Math.abs(me.y) > 600) return;
+    if (Math.abs(me.x) > 1600 || me.z > 1600 || me.z < -4450 || Math.abs(me.y) > 650) return; // (la Riviera va jusqu'à z = -4330)
     if (p.alive) {
       if (p.tpAllow && now <= p.tpAllow.until) {
         // juste après une téléportation autorisée (départ, touche R, retour en service) : pas de contrôle
@@ -935,7 +935,7 @@ export class GameServer {
 
   onTeleport(p: Player, m: Msg): void {
     if (!p.inRound) return;
-    const x = num(m.x, -1500, 1500), z = num(m.z, -1500, 1500);
+    const x = num(m.x, -1500, 1500), z = num(m.z, -4450, 1500);
     if (x === null || z === null) return;
     const now = this.now();
     const fugs = [...this.players.values()].filter((o) => o.inRound && o.role === 'fugitive' && o.alive && o.st);
@@ -969,7 +969,7 @@ export class GameServer {
 
   onSpike(p: Player, m: Msg): void {
     if (!p.inRound || p.role !== 'cop' || !p.alive || this.phase !== 'playing' || !p.spk || p.spk.n <= 0 || !this.round) return;
-    const x = num(m.x, -1500, 1500), z = num(m.z, -1500, 1500), h = num(m.h, -10, 10), w = num(m.w, 2, 9) ?? 4;
+    const x = num(m.x, -1500, 1500), z = num(m.z, -4450, 1500), h = num(m.h, -10, 10), w = num(m.w, 2, 9) ?? 4;
     if (x === null || z === null || h === null || !p.st || hyp(x, z, p.st.x, p.st.z) > 30) return;
     if ([...this.spikes.values()].filter((s) => s.owner === p.id).length >= 2) return this.sys('Déjà deux herses posées.', p);
     p.spk.n--;
@@ -998,7 +998,7 @@ export class GameServer {
 
   onAlarm(p: Player, m: Msg): void {
     const sq = this.squadOf(p);
-    const x = num(m.x, -1500, 1500), z = num(m.z, -1500, 1500);
+    const x = num(m.x, -1500, 1500), z = num(m.z, -4450, 1500);
     if (!sq || x === null || z === null || !p.st || hyp(x, z, p.st.x, p.st.z) > 150) return;
     const now = this.now();
     if (now - (p.alarmT ?? -99) < 15) return;

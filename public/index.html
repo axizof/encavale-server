@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Russo+One&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="./assets/index-DZkcVJ5q.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-CP5WUYuO.css">
+  <script type="module" crossorigin src="./assets/index-70-DUcxj.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-CyzMmVMy.css">
 </head>
 <body>
   <div id="gl"></div>
@@ -47,6 +47,7 @@
     <div id="msgs"></div>
     <div id="popups"></div>
     <div id="drift" class="hidden"></div>
+    <div id="scree" class="hidden"><div class="scHead"><span class="scIco">!</span><span id="screeTxt">PIERRIER</span></div><div class="scBar"><div id="screeFill"></div></div><div id="screeSub">ADHÉRENCE</div></div>
     <div id="bust" class="hidden"><div class="label">ARRESTATION EN COURS — BOUGE !</div><div class="bar"><div id="bustFill"></div></div></div>
     <div id="hidden" class="hidden">À COUVERT — invisible pour l'hélico</div>
     <canvas id="minimap" width="240" height="240"></canvas>
@@ -116,6 +117,7 @@
           <!-- JOUER : choix du mode -->
           <div id="menuPlay" class="menuBtns hidden">
             <div class="mapPick" id="mapPick"></div>
+            <div class="seg vehPick hidden" id="vehPick"><button data-v="car">EN VOITURE</button><button data-v="moto">À MOTO<span class="newBadge">NOUVEAU</span></button></div>
             <button id="btnPlay" class="big playCard">BRAQUAGE<small>Le classique : braque, livre au receleur, échappe aux flics</small></button>
             <button id="btnCop" class="playCard">MODE FLIC<small>De l'autre côté : prends les suspects en chasse</small></button>
             <button id="btnMulti" class="playCard">MULTIJOUEUR<small>Rejoins un serveur avec tes potes</small></button>
@@ -234,6 +236,13 @@
         <div><kbd>ÉCHAP</kbd><kbd>P</kbd></div><div>Pause</div>
       </div>
       <p class="tips">Manette supportée : gâchettes pour accélérer / freiner, A = frein à main, X = nitro, B = regarder derrière.</p>
+      <h3>À MOTO (LA RIVIERA)</h3>
+      <div class="ctrlGrid">
+        <div><kbd>ESPACE</kbd></div><div>Se pencher en arrière : roue arrière avec les gaz (trop longtemps : on se retourne) ; en l'air, la moto bascule en arrière</div>
+        <div><kbd>E</kbd></div><div>Se pencher en avant : stoppie en freinant fort, reposer la roue avant ; en l'air, piquer du nez</div>
+        <div><kbd>Q</kbd><kbd>D</kbd></div><div>Tourner : la moto s'incline, d'autant plus qu'on va vite ; en roue arrière on tourne à peine</div>
+      </div>
+      <p class="tips">Manette : stick gauche tiré vers soi pour se pencher en arrière, poussé pour se pencher en avant. Pas de dérapage sur le goudron (on chute) ; sur la terre, l'arrière glisse. Une chute de trop haut ou de travers fait tomber le pilote : il remonte en selle quelques secondes plus tard.</p>
       <h3>MULTIJOUEUR</h3>
       <div class="ctrlGrid">
         <div><kbd>T</kbd><kbd>ENTRÉE</kbd></div><div>Écrire dans le chat</div>
